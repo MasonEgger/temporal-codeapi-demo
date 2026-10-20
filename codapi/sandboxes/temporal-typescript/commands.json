@@ -1,0 +1,26 @@
+{
+    "run": {
+        "engine": "docker",
+        "entry": "main.ts",
+        "steps": [
+            {
+                "box": "temporal-typescript",
+                "command": ["temporal-run", "node", "main.ts"],
+                "timeout": 30,
+                "noutput": 65536
+            }
+        ]
+    },
+    "history": {
+        "engine": "docker",
+        "entry": "main.ts",
+        "steps": [
+            {
+                "box": "temporal-typescript",
+                "command": ["temporal-run", "--history", "node", "main.ts"],
+                "timeout": 30,
+                "noutput": 65536
+            }
+        ]
+    }
+}

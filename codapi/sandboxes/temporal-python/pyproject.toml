@@ -1,0 +1,10 @@
+# ABOUTME: Dependencies preinstalled into the temporal-python sandbox image.
+# ABOUTME: Learner code runs inside this project's virtual environment at /app/.venv.
+[project]
+name = "temporal-python-sandbox"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = ["temporalio>=1.24.0"]
+
+[tool.uv]
+package = false

@@ -1,0 +1,12 @@
+{
+    "name": "temporal-typescript-sandbox",
+    "private": true,
+    "description": "Dependencies preinstalled into the temporal-typescript sandbox image.",
+    "type": "module",
+    "dependencies": {
+        "@temporalio/activity": "1.24.0",
+        "@temporalio/client": "1.24.0",
+        "@temporalio/worker": "1.24.0",
+        "@temporalio/workflow": "1.24.0"
+    }
+}

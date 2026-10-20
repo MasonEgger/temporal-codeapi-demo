@@ -1,0 +1,26 @@
+{
+    "run": {
+        "engine": "docker",
+        "entry": "main.py",
+        "steps": [
+            {
+                "box": "temporal-python",
+                "command": ["temporal-run", "python", "/opt/temporal/run_program.py", "main.py"],
+                "timeout": 30,
+                "noutput": 65536
+            }
+        ]
+    },
+    "history": {
+        "engine": "docker",
+        "entry": "main.py",
+        "steps": [
+            {
+                "box": "temporal-python",
+                "command": ["temporal-run", "--history", "python", "/opt/temporal/run_program.py", "main.py"],
+                "timeout": 30,
+                "noutput": 65536
+            }
+        ]
+    }
+}

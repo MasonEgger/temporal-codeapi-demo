@@ -1,0 +1,8 @@
+# ABOUTME: JVM flags for learner programs in the temporal-java sandbox, passed to java as an @argfile.
+# Serial GC and C1-only JIT trade peak throughput for faster startup; the rest silence JDK 25 and netty warnings.
+-XX:+UseSerialGC
+-XX:TieredStopAtLevel=1
+--sun-misc-unsafe-memory-access=allow
+--enable-native-access=ALL-UNNAMED
+-Dorg.slf4j.simpleLogger.defaultLogLevel=warn
+-Dio.grpc.netty.shaded.io.netty.machineId=00:00:00:00:00:00:00:01

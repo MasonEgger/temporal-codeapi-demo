@@ -1,0 +1,8 @@
+{
+    "image": "temporal-codapi/typescript",
+    "cpu": 1,
+    "memory": 1024,
+    "writable": true,
+    "nproc": 512,
+    "ulimit": ["nofile=1024"]
+}

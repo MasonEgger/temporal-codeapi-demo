@@ -1,0 +1,26 @@
+{
+    "run": {
+        "engine": "docker",
+        "entry": "Main.java",
+        "steps": [
+            {
+                "box": "temporal-java",
+                "command": ["temporal-run", "java", "@/opt/temporal/java.args", "Main.java"],
+                "timeout": 30,
+                "noutput": 65536
+            }
+        ]
+    },
+    "history": {
+        "engine": "docker",
+        "entry": "Main.java",
+        "steps": [
+            {
+                "box": "temporal-java",
+                "command": ["temporal-run", "--history", "java", "@/opt/temporal/java.args", "Main.java"],
+                "timeout": 30,
+                "noutput": 65536
+            }
+        ]
+    }
+}

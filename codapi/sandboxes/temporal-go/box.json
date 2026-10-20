@@ -1,0 +1,7 @@
+{
+    "image": "temporal-codapi/go",
+    "cpu": 1,
+    "memory": 1024,
+    "writable": true,
+    "nproc": 512
+}

@@ -1,0 +1,7 @@
+{
+    "image": "temporal-codapi/python",
+    "cpu": 1,
+    "memory": 512,
+    "writable": true,
+    "nproc": 512
+}
