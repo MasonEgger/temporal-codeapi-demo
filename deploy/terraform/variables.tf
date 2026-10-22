@@ -1,5 +1,11 @@
 # ABOUTME: Inputs for the playground droplet. Every value has a default; override with -var or a gitignored .tfvars file.
 
+variable "do_token" {
+  description = "DigitalOcean API token. The justfile's _tf wrapper supplies it as TF_VAR_do_token from secrets/terraform.sops.env."
+  type        = string
+  sensitive   = true
+}
+
 variable "region" {
   description = "DigitalOcean region slug. The tutorial greeting reports this location as where the code ran."
   type        = string
@@ -7,9 +13,9 @@ variable "region" {
 }
 
 variable "size" {
-  description = "Droplet size slug. 4 vCPU / 8 GB fits four concurrent runs plus image builds."
+  description = "Droplet size slug. 4 vCPU / 8 GB fits four concurrent runs plus image builds; sfo3 offers only the AMD and Intel variants."
   type        = string
-  default     = "s-4vcpu-8gb"
+  default     = "s-4vcpu-8gb-amd"
 }
 
 variable "droplet_name" {

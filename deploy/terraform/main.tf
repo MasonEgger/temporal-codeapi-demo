@@ -1,5 +1,5 @@
 # ABOUTME: One DigitalOcean droplet for the Temporal tutorial playground, its firewall, and its DNS record.
-# ABOUTME: Also writes the Ansible inventory so `just deploy` knows where to go. State is local and gitignored.
+# ABOUTME: Also writes the Ansible inventory so `just deploy` knows where to go. State is sops-encrypted in git (state.sops.json).
 
 terraform {
   required_version = ">= 1.5"
@@ -16,8 +16,10 @@ terraform {
   }
 }
 
-# The token comes from the DIGITALOCEAN_TOKEN environment variable.
-provider "digitalocean" {}
+# The token arrives as TF_VAR_do_token, injected by `sops exec-env secrets/terraform.sops.env` in the justfile.
+provider "digitalocean" {
+  token = var.do_token
+}
 
 data "digitalocean_ssh_key" "operator" {
   for_each = toset(var.ssh_key_names)
