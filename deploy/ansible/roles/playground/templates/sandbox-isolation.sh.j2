@@ -1,30 +1,41 @@
 #!/usr/bin/env bash
 # ABOUTME: Keeps learners' sandbox containers from reaching each other or the host; only the gateway is allowed.
-# Managed by Ansible. Runs after Docker starts; safe to rerun.
+# Managed by Ansible. Runs after Docker starts; safe to rerun (it replaces its own nftables tables).
+#
+# Docker 28+ does not load br_netfilter, so traffic between two containers on the same bridge never
+# enters the ip FORWARD hook that Docker's DOCKER-USER chain lives in. The bridge family sees every
+# forwarded frame regardless, and matching on the bridge name leaves Docker's own rules untouched.
 set -euo pipefail
 
 bridge="{{ sandbox_bridge }}"
 gateway="{{ gateway_ip }}"
-chain="SANDBOX-ISOLATION"
 
-# Docker creates DOCKER-USER when it starts; wait for it rather than racing.
-for _ in $(seq 1 30); do
-    if iptables -L DOCKER-USER -n >/dev/null 2>&1; then
-        break
-    fi
-    sleep 1
-done
+nft -f - <<EOF
+table bridge sandbox_isolation
+delete table bridge sandbox_isolation
+table bridge sandbox_isolation {
+    chain forward {
+        type filter hook forward priority 0; policy accept;
+        # Only frames that stay on the sandbox bridge are ours to judge.
+        meta ibrname != "${bridge}" accept
+        meta obrname != "${bridge}" accept
+        # ARP so sandboxes and the gateway can find each other, and nothing else.
+        arp daddr ip ${gateway} accept
+        arp saddr ip ${gateway} accept
+        # Either end is the gateway: Web UI proxying, registration, egress.
+        ip saddr ${gateway} accept
+        ip daddr ${gateway} accept
+        drop
+    }
+}
 
-# Rebuild our own chain from scratch so reruns converge on the same rules.
-iptables -N "${chain}" 2>/dev/null || iptables -F "${chain}"
-iptables -A "${chain}" -d "${gateway}" -j RETURN
-iptables -A "${chain}" -s "${gateway}" -j RETURN
-iptables -A "${chain}" -j DROP
-
-# Traffic between two members of the sandbox bridge passes through FORWARD (br_netfilter), so DOCKER-USER sees it.
-iptables -C DOCKER-USER -i "${bridge}" -o "${bridge}" -j "${chain}" 2>/dev/null \
-    || iptables -I DOCKER-USER 1 -i "${bridge}" -o "${bridge}" -j "${chain}"
-
-# The host runs nothing sandboxes may call (Codapi and the Docker API answer on every interface).
-iptables -C INPUT -i "${bridge}" -j DROP 2>/dev/null \
-    || iptables -I INPUT 1 -i "${bridge}" -j DROP
+table ip sandbox_isolation
+delete table ip sandbox_isolation
+table ip sandbox_isolation {
+    chain input {
+        type filter hook input priority filter - 10; policy accept;
+        # The host runs nothing sandboxes may call (Codapi and the Docker API answer on every interface).
+        iifname "${bridge}" drop
+    }
+}
+EOF

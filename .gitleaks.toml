@@ -1,0 +1,21 @@
+# ABOUTME: gitleaks config: the default ruleset plus an allowlist for sops-encrypted files,
+# ABOUTME: whose ENC[...] values and age recipient keys are not leaks.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "sops-encrypted files are not leaks"
+paths = [
+    '''secrets/.*\.sops\.env$''',
+    '''secrets/.*\.sops\.yaml$''',
+    '''deploy/terraform/state\.sops\.json$''',
+]
+regexTarget = "line"
+regexes = [
+    '''ENC\[AES256_GCM''',
+    '''-----BEGIN AGE ENCRYPTED FILE-----''',
+    '''age1[a-z0-9]{58}''',
+    # Pinned release checksums in Ansible variables are not secrets.
+    '''_sha256: [0-9a-f]{64}$''',
+]

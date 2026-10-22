@@ -19,8 +19,10 @@ flowchart LR
 ## What You Need Locally
 
 - Terraform 1.5 or newer, Ansible core 2.15 or newer with the `community.docker` and `community.general` collections (`ansible-galaxy collection install -r deploy/ansible/requirements.yml`).
-- A DigitalOcean API token in `DIGITALOCEAN_TOKEN`.
-  If doctl is logged in, `just infra-plan` prints the one-liner that pulls it from doctl's config.
+- `sops` and `age`, with your age private key at `~/.config/sops/age/keys.txt` and its public key listed in `.sops.yaml`.
+  The DigitalOcean API token lives in `secrets/terraform.sops.env` as `TF_VAR_do_token`; `just sops secrets/terraform.sops.env` edits it.
+  Terraform state is committed encrypted as `deploy/terraform/state.sops.json`; every `just infra-*` recipe decrypts it, runs Terraform, and re-encrypts it if it changed.
+  See `secrets/README.md` for onboarding another operator.
 - An SSH key already uploaded to DigitalOcean whose name is in `ssh_key_names` (`deploy/terraform/variables.tf`).
 
 ## First Launch
@@ -30,8 +32,9 @@ just infra-init
 just infra-apply
 ```
 
-Terraform creates the droplet in `sfo3` (`s-4vcpu-8gb`), a cloud firewall that opens only 22, 80, and 443, the A record `temporal.egger.codes`, and writes `deploy/ansible/inventory/hosts.yml`.
+Terraform creates the droplet in `sfo3` (`s-4vcpu-8gb-amd`; the plain `s-4vcpu-8gb` is not offered there), a cloud firewall that opens only 22, 80, and 443, the A record `temporal.egger.codes`, and writes `deploy/ansible/inventory/hosts.yml`.
 Change any of those with `-var`, for example `just infra-apply -var git_ref=feature/my-branch`, or put overrides in a gitignored `deploy/terraform/*.tfvars` file.
+After an apply or destroy, commit `deploy/terraform/state.sops.json`; it is the only copy of the state.
 
 Give the droplet a minute to boot, then:
 
@@ -76,7 +79,7 @@ Codapi restarts after a new checkout because it reads its configuration only at 
 | Codapi config | `/opt/temporal-playground/codapi` (the repository's own directory) |
 | Gateway | `docker compose` project `temporal-playground` from `deploy/compose.yaml`, settings in `/etc/temporal-playground.env` |
 | Sandbox network | `temporal-codapi-sandbox`, subnet `10.213.0.0/24`, bridge `br-sandbox`, gateway at `10.213.0.2` |
-| Isolation rules | `/usr/local/sbin/sandbox-isolation`, run by `sandbox-isolation.service` after Docker |
+| Isolation rules | `/usr/local/sbin/sandbox-isolation` (nftables), run by `sandbox-isolation.service` after Docker |
 | Caddy | `/etc/caddy/Caddyfile` |
 
 Logs:
@@ -93,7 +96,9 @@ docker logs -f temporal-codapi-gateway
 
 Sandboxes share one internal Docker network so they can reach the gateway, which is their only route to the internet and the only place that can reach their Web UI.
 Without more rules, one learner's code could reach another learner's Web UI on port 8233, and the Web UI exposes the Temporal API.
-`sandbox-isolation` adds two iptables rules: traffic between two members of the sandbox bridge is dropped unless one end is the gateway, and traffic from the bridge to the host itself is dropped, so sandboxes cannot reach Codapi or the Docker API on the host.
+`sandbox-isolation` installs two nftables tables: in the `bridge` family, frames that enter and leave on the sandbox bridge are dropped unless one end is the gateway (ARP included), and in the `ip` family, traffic from the bridge to the host itself is dropped, so sandboxes cannot reach Codapi or the Docker API on the host.
+The rules live in the bridge family because Docker 28 and later do not load `br_netfilter`, so same-bridge traffic never reaches the iptables `FORWARD` chain where `DOCKER-USER` sits.
+Inspect them with `nft list table bridge sandbox_isolation`.
 
 To verify from the droplet, run a sandbox shell on the network and try the neighbors:
 
@@ -110,8 +115,8 @@ A classroom behind one NAT address shares one bucket; raise the numbers in `depl
 
 | Item | Amount |
 |---|---|
-| `s-4vcpu-8gb` | $48 per month, billed hourly at $0.0714 |
-| One week | about $12 |
+| `s-4vcpu-8gb-amd` | $56 per month, billed hourly at $0.0833 |
+| One week | about $14 |
 
 The droplet keeps billing until it is destroyed.
 When the demo is over:
@@ -121,6 +126,8 @@ just infra-destroy
 ```
 
 That removes the droplet, the firewall, the DNS record, and the generated inventory.
+Commit the re-encrypted `deploy/terraform/state.sops.json` afterward.
 Nothing on the droplet is state worth keeping; the repository is the source of truth.
 
-Teardown date for the current deployment: not yet launched.
+Current deployment: launched 2026-10-22 from the `feature/digitalocean-deploy` branch as the test deploy; planned teardown 2026-10-29.
+After the branches merge, `just infra-apply` (default `git_ref=main`) rewrites the inventory and `just deploy` moves the droplet to main without recreating it.

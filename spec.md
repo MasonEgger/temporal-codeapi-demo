@@ -20,7 +20,7 @@ This phase adds a `deploy/` tree (Terraform plus Ansible), the small code change
 | Decision | Choice | Why |
 |---|---|---|
 | Hostname | A subdomain of `egger.codes`, default `temporal.egger.codes` (variable `playground_hostname`) | Zone is already in DigitalOcean DNS, so Terraform owns the A record and Caddy gets a Let's Encrypt cert with no manual step |
-| Droplet | `s-4vcpu-8gb` ($48/mo, $0.0714/h), Ubuntu 24.04, region `sfo3` (variable) | Java and TypeScript boxes cap at 1.5 GB each, pool of 4 concurrent runs, plus lingering dev servers and on-box image builds |
+| Droplet | `s-4vcpu-8gb-amd` ($56/mo, $0.0833/h), Ubuntu 24.04, region `sfo3` (variable); sfo3 does not offer the plain `s-4vcpu-8gb` | Java and TypeScript boxes cap at 1.5 GB each, pool of 4 concurrent runs, plus lingering dev servers and on-box image builds |
 | Images | Built on the droplet from a git clone at `playground_git_ref` | Public repo, no registry or secrets, same build as the justfile |
 | Codapi | v0.14.2 binary under systemd as user `codapi` (Codapi's own install layout) | Needs the docker CLI and bind-mounts a per-run temp dir into each sandbox; host install keeps those paths simple |
 | Reverse proxy | Caddy, one public origin | Automatic TLS; the page, the Codapi API, and the embedded Web UI must share an origin |
@@ -33,7 +33,7 @@ This phase adds a `deploy/` tree (Terraform plus Ansible), the small code change
 | September 2026 invoice, product charges | $133.00, offset by "DO Alumni Discount (100%)" to $0.00 |
 | Running now: dev ($96), valheim ($32), hosted-tailnet-apps ($24), tailnet-exit-nyc2 ($8), labradillo-prod ($6), Spaces ($5) | $171/mo |
 | Headroom under $200 if every current resource runs a full month | $29/mo |
-| This droplet, hourly | $0.0714/h, about $12 per week |
+| This droplet, hourly | $0.0833/h, about $14 per week |
 
 One week of `s-4vcpu-8gb` fits.
 Two weeks fits.
@@ -48,8 +48,7 @@ doctl shows the discount as a 100% line item, not a $200 cap, so the cap itself 
 - Writing: per `~/.claude/writing-hard-rules.md` (no em dashes, one sentence per line in committed Markdown, Title Case headings outside Temporal docs).
 - paths: `web/tutorials/source/` is never edited.
 - paths: every code file starts with a two-line `ABOUTME:` header.
-- deps: no Terraform state, inventory, tokens, or `.tfvars` with secrets in git; `deploy/terraform/*.tfstate*`, `deploy/terraform/.terraform/`, and the generated Ansible inventory are gitignored.
-- Secrets: the DigitalOcean token comes from the `DIGITALOCEAN_TOKEN` environment variable (doctl already holds one at `~/.config/doctl/config.yaml`); nothing in the repo contains it.
+- Secrets: sops with age, as in PyTexas/infrastructure and Labradillo/infra. The DigitalOcean token is `TF_VAR_do_token` in `secrets/terraform.sops.env`, injected with `sops exec-env`; Terraform state is committed encrypted as `deploy/terraform/state.sops.json` through the justfile's `_tf` wrapper. Plaintext state, `.tfvars`, and the generated inventory are gitignored; `.gitleaks.toml` allowlists the ciphertext.
 - Sandboxes keep `cap_drop: all`, the internal network, and the proxy-only egress; no deployment change widens what learner code can reach.
 - Codapi, Docker, and the gateway's sandbox-facing port never listen on the public interface; only Caddy's 80 and 443 and SSH are open.
 - The deployment touches one droplet and one DNS record; nothing else in the DigitalOcean account is managed or modified.
@@ -77,7 +76,7 @@ doctl shows the discount as a 100% line item, not a $200 cap, so the cap itself 
 
 **Deferred:**
 - Image builds in GitHub Actions pushed to GHCR: only worth it if redeploys become frequent.
-- Per-session Docker networks instead of one shared internal network: Codapi fixes the network per box in `box.json`, so this needs a Codapi change or a wrapper; the iptables rule below covers the exposure for now.
+- Per-session Docker networks instead of one shared internal network: Codapi fixes the network per box in `box.json`, so this needs a Codapi change or a wrapper; the nftables rules in G3 cover the exposure for now.
 - Response caching for `/v1/exec` (Codapi's nginx guide): runs are not idempotent here (fresh dev server each time), so caching would be wrong for this playground.
 - Monitoring and alerting beyond DigitalOcean's built-in droplet graphs: one-week lifetime.
 - Multiple droplets or a load balancer: out of budget and out of need.
@@ -110,7 +109,7 @@ Stock Caddy has no rate limiting, so the gateway does it.
 The README's "Exposure" note: containers on the shared internal network can reach each other's Web UI on port 8233, and the Web UI exposes the Temporal API.
 
 - The sandbox network is created with a fixed subnet and a fixed bridge name (`com.docker.network.bridge.name=br-sandbox`), and the gateway joins it with a fixed IP.
-- An iptables rule in the `DOCKER-USER` chain drops bridge-to-bridge traffic on `br-sandbox` except traffic to the gateway's IP. It is installed by a systemd oneshot ordered after `docker.service` so it survives reboots.
+- An nftables table in the `bridge` family drops frames that enter and leave on `br-sandbox` unless one end is the gateway's IP (ARP included); an `ip` family input rule drops bridge-to-host traffic. Installed by a systemd oneshot ordered after `docker.service` so it survives reboots. (Docker 28+ does not load `br_netfilter`, so an iptables `DOCKER-USER` rule never sees same-bridge traffic; verified on the test droplet 2026-10-22.)
 - Verification from inside a sandbox: `curl gateway:3128/current/x` answers; `curl <other-container-ip>:8233` fails; `curl <droplet-private-ip>:1313` and the Docker API are unreachable.
 - README's "Exposure" bullet is rewritten to describe the hosted setup.
 
@@ -118,8 +117,8 @@ The README's "Exposure" note: containers on the shared internal network can reac
 
 Directory `deploy/terraform/`.
 
-- Provider `digitalocean/digitalocean` (2.x), token from `DIGITALOCEAN_TOKEN`, local state.
-- Variables with defaults: `region` (`sfo3`), `size` (`s-4vcpu-8gb`), `hostname` (`temporal`), `domain` (`egger.codes`), `ssh_key_names` (`["labradillo-dev-box", "Temporal Macbook Pro"]`), `git_ref` (`main`), `tags` (`["temporal-playground"]`).
+- Provider `digitalocean/digitalocean` (2.x), token from `TF_VAR_do_token` (sops), state encrypted in git.
+- Variables with defaults: `region` (`sfo3`), `size` (`s-4vcpu-8gb-amd`), `hostname` (`temporal`), `domain` (`egger.codes`), `ssh_key_names` (`["labradillo-dev-box", "Temporal Macbook Pro"]`), `git_ref` (`main`), `tags` (`["temporal-playground"]`).
 - Resources: `digitalocean_droplet` (image `ubuntu-24-04-x64`, monitoring on, IPv6 on, the named SSH keys looked up by `data.digitalocean_ssh_key`), `digitalocean_firewall` (inbound 22, 80, 443 from anywhere; all outbound), `digitalocean_record` (A record `hostname` in `domain`, TTL 300).
 - Outputs: `ipv4`, `fqdn`, and a rendered Ansible inventory written by `local_file` to `deploy/ansible/inventory/hosts.yml` (gitignored) carrying the host, `ansible_user: root`, `playground_hostname`, and `playground_git_ref`.
 - `terraform fmt -check` and `terraform validate` pass; `terraform plan` shows exactly three resources plus the local file.
@@ -129,7 +128,7 @@ Directory `deploy/terraform/`.
 Directory `deploy/ansible/` with `ansible.cfg`, `site.yml`, `group_vars/all.yml`, and roles.
 Idempotent: a second run reports zero changes; a run with a new `playground_git_ref` rebuilds images and restarts only what changed.
 
-- Role `base`: apt update and upgrade, `unattended-upgrades`, `fail2ban`, `curl`, `git`, `jq`, `just` (Ubuntu 24.04 ships a `just` package; fall back to the upstream install script if the version is too old to parse the justfile), timezone UTC, SSH password auth off.
+- Role `base`: apt update and upgrade, `unattended-upgrades`, `fail2ban`, `curl`, `git`, `jq`, `nftables`, `just` (Ubuntu 24.04 ships a `just` package; fall back to the upstream install script if the version is too old to parse the justfile), timezone UTC, SSH password auth off.
 - Role `docker`: Docker Engine from Docker's apt repository (not `docker.io`, per Codapi's install guide), `daemon.json` with `json-file` log rotation (`max-size` 10m, `max-file` 3) and `no-new-privileges: true`, service enabled.
 - Role `codapi`: user `codapi` in the `docker` group with home `/opt/codapi`; download `codapi_0.14.2_linux_amd64.tar.gz` from GitHub releases with a checksum; `/opt/codapi/tmp` as `TMPDIR`; systemd unit from Codapi's `codapi.service` adapted to `WorkingDirectory=/opt/temporal-playground/codapi` and `Environment=TMPDIR=/opt/codapi/tmp`; journald instead of a log file; `Restart=always`.
 - Role `playground`: clone the repo to `/opt/temporal-playground` at `playground_git_ref` (`ansible.builtin.git`, `force: yes`); run `just build` only when the checked-out commit changed (register the commit before and after); create the sandbox network per G3 with the fixed subnet and bridge name; install the `DOCKER-USER` oneshot; run the gateway from `deploy/compose.yaml` (`restart: unless-stopped`, fixed IP on the sandbox network, `-codapi-addr` and `-trust-proxy`, read-only mounts of `web/` and `examples/`, port bound to `127.0.0.1:3129`) via `community.docker.docker_compose_v2`; restart Codapi when `codapi/**` changed.
@@ -139,7 +138,7 @@ Idempotent: a second run reports zero changes; a run with a new `playground_git_
 
 ### G6. Operator recipes and docs
 
-- justfile: `infra-init`, `infra-plan`, `infra-apply`, `infra-destroy`, `deploy` (ansible-playbook with the generated inventory), `deploy-ssh`, and `smoke url` (runs the pytest suite against a URL). Each infra recipe checks that `DIGITALOCEAN_TOKEN` is set and prints how to get it from doctl if not.
+- justfile: `infra-init`, `infra-plan`, `infra-apply`, `infra-destroy`, `infra-output` (all through `_tf`, which decrypts the token and the state), `deploy` (ansible-playbook with the generated inventory), `deploy-ssh`, `smoke url` (runs the pytest suite against a URL), `sops file`, and `rekey`.
 - `deploy/README.md`: first launch (apply, wait for DNS, deploy, smoke), redeploy after a code change (`git_ref` or merge to main, then `just deploy`), where logs live (`journalctl -u codapi`, `journalctl -u caddy`, `docker logs temporal-codapi-gateway`), cost and the teardown command, and the one-week teardown date filled in at launch.
 - Root README: a short "Hosted at" section pointing at `deploy/README.md`; the "Exposure" bullet rewritten per G3; capacity numbers restated for the droplet.
 - CLAUDE.md: the new directory and recipes.

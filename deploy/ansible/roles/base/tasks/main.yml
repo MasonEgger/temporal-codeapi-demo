@@ -14,6 +14,7 @@
       - fail2ban
       - git
       - jq
+      - nftables
       - python3-debian
       - unattended-upgrades
       - unzip
