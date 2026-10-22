@@ -1,0 +1,31 @@
+# ABOUTME: Caddy as the public face: TLS from Let's Encrypt, reverse proxy to the gateway on localhost.
+---
+- name: Add Caddy's apt repository
+  ansible.builtin.deb822_repository:
+    name: caddy-stable
+    types: deb
+    uris: https://dl.cloudsmith.io/public/caddy/stable/deb/debian
+    suites: any-version
+    components: main
+    signed_by: https://dl.cloudsmith.io/public/caddy/stable/gpg.key
+  register: caddy_repository
+
+- name: Install Caddy
+  ansible.builtin.apt:
+    name: caddy
+    state: present
+    update_cache: "{{ caddy_repository.changed }}"
+
+- name: Write the Caddyfile
+  ansible.builtin.template:
+    src: Caddyfile.j2
+    dest: /etc/caddy/Caddyfile
+    mode: "0644"
+    validate: caddy validate --adapter caddyfile --config %s
+  notify: Reload caddy
+
+- name: Enable Caddy
+  ansible.builtin.service:
+    name: caddy
+    state: started
+    enabled: true

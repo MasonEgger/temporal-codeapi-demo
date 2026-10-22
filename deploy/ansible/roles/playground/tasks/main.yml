@@ -1,0 +1,123 @@
+# ABOUTME: The playground itself: repository checkout, sandbox and gateway images, the isolated sandbox network,
+# ABOUTME: the gateway container, and the housekeeping timer. Builds only when the checkout changed or images are missing.
+---
+- name: Install just
+  ansible.builtin.get_url:
+    url: "https://github.com/casey/just/releases/download/{{ just_version }}/just-{{ just_version }}-x86_64-unknown-linux-musl.tar.gz"
+    dest: "/usr/local/src/just-{{ just_version }}.tar.gz"
+    checksum: "sha256:{{ just_sha256 }}"
+    mode: "0644"
+
+- name: Unpack just
+  ansible.builtin.unarchive:
+    src: "/usr/local/src/just-{{ just_version }}.tar.gz"
+    dest: /usr/local/bin
+    remote_src: true
+    include:
+      - just
+    mode: "0755"
+    creates: /usr/local/bin/just
+
+- name: Check out the playground
+  ansible.builtin.git:
+    repo: "{{ playground_repo }}"
+    dest: "{{ playground_dir }}"
+    version: "{{ playground_git_ref }}"
+    force: true
+  register: playground_checkout
+  # Codapi reads codapi.json, box.json, and commands.json only at startup.
+  notify: Restart codapi
+
+- name: Find out whether every image exists
+  ansible.builtin.command:
+    argv: "{{ ['docker', 'image', 'inspect'] + sandbox_images }}"
+  register: playground_images
+  changed_when: false
+  failed_when: false
+
+- name: Build the gateway and sandbox images
+  ansible.builtin.command:
+    cmd: just build
+    chdir: "{{ playground_dir }}"
+  when: playground_checkout.changed or playground_images.rc != 0
+  async: 3600
+  poll: 20
+  changed_when: true
+
+- name: Look for the sandbox network
+  ansible.builtin.command:
+    cmd: "docker network inspect {{ sandbox_network }}"
+  register: playground_network
+  changed_when: false
+  failed_when: false
+
+- name: Create the internal sandbox network
+  ansible.builtin.command:
+    argv:
+      - docker
+      - network
+      - create
+      - --internal
+      - --subnet
+      - "{{ sandbox_subnet }}"
+      - --opt
+      - "com.docker.network.bridge.name={{ sandbox_bridge }}"
+      - "{{ sandbox_network }}"
+  when: playground_network.rc != 0
+  changed_when: true
+
+- name: Install the sandbox isolation script
+  ansible.builtin.template:
+    src: sandbox-isolation.sh.j2
+    dest: /usr/local/sbin/sandbox-isolation
+    mode: "0755"
+  notify: Restart sandbox-isolation
+
+- name: Install the sandbox isolation unit
+  ansible.builtin.template:
+    src: sandbox-isolation.service.j2
+    dest: /etc/systemd/system/sandbox-isolation.service
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart sandbox-isolation
+
+- name: Enable sandbox isolation
+  ansible.builtin.systemd_service:
+    name: sandbox-isolation
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Write the gateway's environment
+  ansible.builtin.template:
+    src: gateway.env.j2
+    dest: /etc/temporal-playground.env
+    mode: "0644"
+
+- name: Run the gateway
+  community.docker.docker_compose_v2:
+    project_src: "{{ playground_dir }}/deploy"
+    files:
+      - compose.yaml
+    env_files:
+      - /etc/temporal-playground.env
+    state: present
+    remove_orphans: true
+
+- name: Install the housekeeping service and timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    mode: "0644"
+  loop:
+    - docker-housekeeping.service
+    - docker-housekeeping.timer
+  notify: Reload systemd
+
+- name: Enable the housekeeping timer
+  ansible.builtin.systemd_service:
+    name: docker-housekeeping.timer
+    enabled: true
+    state: started
+    daemon_reload: true

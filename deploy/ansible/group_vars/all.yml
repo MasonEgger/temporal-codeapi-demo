@@ -1,0 +1,32 @@
+# ABOUTME: Settings for the playground droplet. The inventory Terraform writes overrides hostname and git ref per host.
+---
+playground_repo: https://github.com/MasonEgger/temporal-codeapi-demo.git
+playground_git_ref: main
+playground_dir: /opt/temporal-playground
+playground_hostname: temporal.egger.codes
+
+# Gateway run limit per client address (see gateway -run-rate and -run-burst).
+run_rate: 20
+run_burst: 20
+
+# Codapi server, installed the way its own install guide does: a binary under /opt/codapi run as user codapi.
+codapi_version: 0.14.2
+codapi_sha256: 4778aca294e7eba8170e8301c2705b2474ba7ddd157ef7ae98959b7504e96388
+codapi_home: /opt/codapi
+
+just_version: 1.46.0
+just_sha256: 79966e6e353f535ee7d1c6221641bcc8e3381c55b0d0a6dc6e54b34f9db36eaa
+
+# Sandbox network. Fixed subnet, bridge name, and gateway address so the isolation rule can name them.
+sandbox_network: temporal-codapi-sandbox
+sandbox_subnet: 10.213.0.0/24
+sandbox_bridge: br-sandbox
+gateway_ip: 10.213.0.2
+
+sandbox_images:
+  - temporal-codapi/gateway:latest
+  - temporal-codapi/base:latest
+  - temporal-codapi/python:latest
+  - temporal-codapi/go:latest
+  - temporal-codapi/java:latest
+  - temporal-codapi/typescript:latest

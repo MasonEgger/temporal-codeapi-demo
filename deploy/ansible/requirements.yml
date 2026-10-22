@@ -1,0 +1,5 @@
+# ABOUTME: Collections the playbook needs beyond ansible-core; install with `ansible-galaxy collection install -r requirements.yml`.
+---
+collections:
+  - name: community.docker
+    version: ">=3.7.0"

@@ -8,3 +8,10 @@ __pycache__/
 .ruff_cache/
 .coverage
 commit-msg.md
+
+# Deployment: state, generated inventory, and provider plugins stay local
+deploy/terraform/.terraform/
+deploy/terraform/*.tfstate
+deploy/terraform/*.tfstate.*
+deploy/terraform/*.tfvars
+deploy/ansible/inventory/hosts.yml

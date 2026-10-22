@@ -1,0 +1,10 @@
+# Managed by Ansible.
+[Unit]
+Description=Weekly Docker housekeeping for the playground
+
+[Timer]
+OnCalendar=weekly
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,49 @@
+# ABOUTME: Operating system baseline: current packages, automatic security updates, key-only SSH, fail2ban.
+---
+- name: Upgrade installed packages
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+    upgrade: safe
+
+- name: Install base packages
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - fail2ban
+      - git
+      - jq
+      - python3-debian
+      - unattended-upgrades
+      - unzip
+    state: present
+
+- name: Apply security updates automatically
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+    mode: "0644"
+
+- name: Set the timezone to UTC
+  community.general.timezone:
+    name: Etc/UTC
+
+- name: Refuse SSH password logins
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/60-playground.conf
+    content: |
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin prohibit-password
+    mode: "0644"
+    validate: sshd -t -f %s
+  notify: Restart ssh
+
+- name: Enable fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    state: started
+    enabled: true

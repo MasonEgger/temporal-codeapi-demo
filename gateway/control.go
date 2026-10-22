@@ -17,12 +17,24 @@ import (
 // sessionIDPattern accepts the random UUIDs the tutorial page generates.
 var sessionIDPattern = regexp.MustCompile(`^[A-Za-z0-9-]{16,64}$`)
 
+// SiteOptions configures the browser-facing handler.
+type SiteOptions struct {
+	UIPort     string   // Web UI port inside each sandbox container
+	Codapi     *url.URL // Codapi server to forward /v1/ to; nil leaves the route out
+	RunLimiter *Limiter // per-address cap on /v1/exec; nil means unlimited
+	TrustProxy bool     // key the run limit on X-Forwarded-For (set when Caddy is in front)
+}
+
 // NewSite returns the browser-facing handler: tutorial pages at /, example sources at /examples/,
-// the session API, and each session's Web UI. uiPort is the Web UI port inside each sandbox container.
-func NewSite(store *Store, pages fs.FS, examples fs.FS, uiPort string) http.Handler {
+// the session API, each session's Web UI, and, when configured, the Codapi API at /v1/.
+func NewSite(store *Store, pages fs.FS, examples fs.FS, options SiteOptions) http.Handler {
+	uiPort := options.UIPort
 	mux := http.NewServeMux()
 	mux.Handle("/", revalidate(http.FileServerFS(pages)))
 	mux.Handle("/examples/", revalidate(http.StripPrefix("/examples", http.FileServerFS(examples))))
+	if options.Codapi != nil {
+		mux.Handle("/v1/", newCodapiHandler(options.Codapi, options.RunLimiter, options.TrustProxy))
+	}
 
 	mux.HandleFunc("GET /api/sessions/{id}", withSessionID(func(w http.ResponseWriter, r *http.Request, id string) {
 		w.Header().Set("Content-Type", "application/json")

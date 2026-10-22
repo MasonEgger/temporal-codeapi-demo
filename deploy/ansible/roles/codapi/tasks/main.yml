@@ -1,0 +1,70 @@
+# ABOUTME: Codapi server as a systemd service, laid out like Codapi's own install guide: user codapi, binary in /opt/codapi.
+# ABOUTME: Its config and sandboxes are the repository's codapi/ directory; the playground role's checkout task restarts it.
+---
+- name: Create the codapi user
+  ansible.builtin.user:
+    name: codapi
+    system: true
+    create_home: true
+    home: "{{ codapi_home }}"
+    shell: /usr/bin/bash
+    groups:
+      - docker
+    append: true
+
+- name: Create the directories Codapi writes to
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: codapi
+    group: codapi
+    mode: "0755"
+  loop:
+    - "{{ codapi_home }}/tmp"
+    - "{{ codapi_home }}/releases"
+
+- name: Download Codapi {{ codapi_version }}
+  ansible.builtin.get_url:
+    url: "https://github.com/nalgeon/codapi/releases/download/v{{ codapi_version }}/codapi_{{ codapi_version }}_linux_amd64.tar.gz"
+    dest: "{{ codapi_home }}/releases/codapi-{{ codapi_version }}.tar.gz"
+    checksum: "sha256:{{ codapi_sha256 }}"
+    owner: codapi
+    group: codapi
+    mode: "0644"
+
+- name: Unpack the Codapi binary
+  ansible.builtin.unarchive:
+    src: "{{ codapi_home }}/releases/codapi-{{ codapi_version }}.tar.gz"
+    dest: "{{ codapi_home }}/releases"
+    remote_src: true
+    include:
+      - codapi
+    owner: codapi
+    group: codapi
+    mode: "0755"
+    creates: "{{ codapi_home }}/releases/codapi"
+
+- name: Point /opt/codapi/codapi at the unpacked binary
+  ansible.builtin.file:
+    src: "{{ codapi_home }}/releases/codapi"
+    dest: "{{ codapi_home }}/codapi"
+    state: link
+    owner: codapi
+    group: codapi
+  notify: Restart codapi
+
+- name: Install the Codapi unit
+  ansible.builtin.template:
+    src: codapi.service.j2
+    dest: /etc/systemd/system/codapi.service
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart codapi
+
+- name: Enable Codapi
+  ansible.builtin.systemd_service:
+    name: codapi
+    enabled: true
+    state: started
+    daemon_reload: true
