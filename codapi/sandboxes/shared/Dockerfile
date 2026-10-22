@@ -1,4 +1,4 @@
-# ABOUTME: Base layer holding the Temporal CLI and the temporal-run harness.
+# ABOUTME: Base layer holding the Temporal CLI and the temporal-serve and temporal-run harness scripts.
 # ABOUTME: Each language sandbox copies /usr/local/bin from this image instead of downloading the CLI itself.
 FROM debian:bookworm-slim
 
@@ -11,5 +11,5 @@ RUN apt-get update \
         | tar -xz -C /usr/local/bin temporal \
     && rm -rf /var/lib/apt/lists/*
 
-COPY temporal-run /usr/local/bin/temporal-run
-RUN chmod 0755 /usr/local/bin/temporal-run /usr/local/bin/temporal
+COPY codapi/sandboxes/shared/temporal-serve codapi/sandboxes/shared/temporal-run /usr/local/bin/
+RUN chmod 0755 /usr/local/bin/temporal /usr/local/bin/temporal-serve /usr/local/bin/temporal-run

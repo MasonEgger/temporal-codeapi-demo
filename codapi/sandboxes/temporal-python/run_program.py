@@ -1,6 +1,6 @@
 # ABOUTME: Runs a learner's Python program, then exits without interpreter finalization.
 # Works around temporalio/sdk-python#300, where dropping the SDK's Rust runtime at exit can hang under CPU contention.
-"""Launch a Python file as ``__main__`` and exit with ``os._exit``."""
+"""Launch a Python file or module as ``__main__`` and exit with ``os._exit``."""
 
 import os
 import runpy
@@ -8,19 +8,26 @@ import sys
 import traceback
 
 
-def run(path: str) -> int:
-    """Run a Python file as ``__main__`` and report how it ended.
+def run(target: str, *, as_module: bool = False) -> int:
+    """Run a Python file or module as ``__main__`` and report how it ended.
 
     Tracebacks start at the learner's file, hiding this launcher's frames.
 
     Args:
-        path: The Python file to run.
+        target: The Python file to run, or the module name when ``as_module`` is set.
+        as_module: Run ``target`` like ``python -m target`` instead of as a file path.
 
     Returns:
         The process exit code the program would have produced if run directly.
     """
+    path = target
+    # Match `python file.py` (script directory first on sys.path) and `python -m` (current directory first).
+    sys.path.insert(0, os.getcwd() if as_module else os.path.dirname(os.path.abspath(target)))
     try:
-        runpy.run_path(path, run_name="__main__")
+        if as_module:
+            runpy.run_module(target, run_name="__main__", alter_sys=True)
+        else:
+            runpy.run_path(target, run_name="__main__")
     except SystemExit as exit_request:
         match exit_request.code:
             case None:
@@ -41,9 +48,10 @@ def run(path: str) -> int:
 
 
 def main() -> None:
-    """Run the file named by the first argument and exit with its status."""
-    sys.argv = sys.argv[1:]
-    exit_code = run(sys.argv[0])
+    """Run ``<file> [args...]`` or ``-m <module> [args...]`` and exit with its status."""
+    as_module = sys.argv[1] == "-m"
+    sys.argv = sys.argv[2:] if as_module else sys.argv[1:]
+    exit_code = run(sys.argv[0], as_module=as_module)
 
     # os._exit skips the interpreter's normal shutdown, including flushing output buffers.
     sys.stdout.flush()

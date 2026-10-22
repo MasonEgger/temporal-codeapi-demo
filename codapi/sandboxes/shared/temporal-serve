@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# ABOUTME: First, detached step of a Codapi run: starts the Temporal dev server and its Web UI, then lingers.
+# The learner's session ID (from /sandbox/session.id) sets the UI path and registers this container with the gateway.
+#
+# Usage: temporal-serve
+#
+# Lingers up to TEMPORAL_LINGER_SECONDS so the learner can explore the run in the Web UI,
+# but exits as soon as a newer run from the same session replaces it. Without a session,
+# it exits right after temporal-run marks the run done.
+set -euo pipefail
+
+linger_seconds="${TEMPORAL_LINGER_SECONDS:-600}"
+gateway="http://gateway:3128"
+
+session="$(tr -d '[:space:]' </sandbox/session.id 2>/dev/null || true)"
+if [[ ! "${session}" =~ ^[A-Za-z0-9-]{16,64}$ ]]; then
+    session=""
+fi
+ui_path="/"
+if [[ -n "${session}" ]]; then
+    ui_path="/ui/${session}"
+fi
+
+# The gRPC frontend stays on loopback; only the Web UI listens on the sandbox network for the gateway.
+temporal server start-dev \
+    --ip 127.0.0.1 \
+    --ui-ip 0.0.0.0 \
+    --ui-port 8233 \
+    --ui-public-path "${ui_path}" \
+    --ui-disable-news-fetch \
+    --log-level error \
+    >/tmp/temporal-server.log 2>&1 &
+
+if [[ -z "${session}" ]]; then
+    until [[ -e /tmp/run-done ]]; do
+        sleep 0.5
+    done
+    exit 0
+fi
+
+curl --silent --show-error --noproxy '*' --request POST "${gateway}/register/${session}" >/dev/null
+my_ip="$(hostname -i | awk '{print $1}')"
+
+# Stay up for the Web UI until superseded by this session's next run or the linger time runs out.
+deadline=$((SECONDS + linger_seconds))
+while ((SECONDS < deadline)); do
+    sleep 5
+    current="$(curl --silent --noproxy '*' "${gateway}/current/${session}" || true)"
+    if [[ -n "${current}" && "${current}" != "${my_ip}" ]]; then
+        exit 0
+    fi
+done

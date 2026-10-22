@@ -13,6 +13,9 @@ dev = [
     "httpx",
     "temporalio",
     "pydantic>=2.14.1",
+    "requests>=2.34.2",
+    "types-requests>=2.33.0.20261006",
+    "pytest-asyncio>=1.4.0",
 ]
 
 [build-system]
@@ -21,6 +24,8 @@ build-backend = "hatchling.build"
 
 [tool.ruff]
 line-length = 120
+# Untouched copies of the learn.temporal.io tutorials; they must stay identical to upstream.
+extend-exclude = ["web/tutorials/source"]
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "N", "UP", "B", "SIM", "C4", "TC"]
@@ -30,3 +35,7 @@ strict = true
 
 [tool.uv]
 package = false
+
+# Only the playground's smoke tests; examples/ holds tutorial code with its own tests.
+[tool.pytest.ini_options]
+testpaths = ["tests"]

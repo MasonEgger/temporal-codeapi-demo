@@ -1,24 +1,84 @@
 {
     "run": {
         "engine": "docker",
-        "entry": "main.ts",
+        "entry": "src/client.ts",
         "steps": [
             {
                 "box": "temporal-typescript",
-                "command": ["temporal-run", "node", "main.ts"],
-                "timeout": 30,
+                "detach": true,
+                "command": [
+                    "temporal-serve"
+                ]
+            },
+            {
+                "box": ":name",
+                "action": "exec",
+                "command": [
+                    "temporal-run",
+                    "--pass-name",
+                    "--worker",
+                    "exec node --require tsx/cjs src/worker.ts",
+                    "--",
+                    "node",
+                    "--require",
+                    "tsx/cjs",
+                    "src/client.ts"
+                ],
+                "timeout": 120,
                 "noutput": 65536
             }
         ]
     },
     "history": {
         "engine": "docker",
-        "entry": "main.ts",
+        "entry": "src/client.ts",
         "steps": [
             {
                 "box": "temporal-typescript",
-                "command": ["temporal-run", "--history", "node", "main.ts"],
-                "timeout": 30,
+                "detach": true,
+                "command": [
+                    "temporal-serve"
+                ]
+            },
+            {
+                "box": ":name",
+                "action": "exec",
+                "command": [
+                    "temporal-run",
+                    "--pass-name",
+                    "--history",
+                    "--worker",
+                    "exec node --require tsx/cjs src/worker.ts",
+                    "--",
+                    "node",
+                    "--require",
+                    "tsx/cjs",
+                    "src/client.ts"
+                ],
+                "timeout": 120,
+                "noutput": 65536
+            }
+        ]
+    },
+    "test": {
+        "engine": "docker",
+        "entry": "src/mocha/workflows-mocks.test.ts",
+        "steps": [
+            {
+                "box": "temporal-typescript",
+                "command": [
+                    "temporal-run",
+                    "--no-server",
+                    "--",
+                    "node_modules/.bin/mocha",
+                    "--exit",
+                    "--timeout",
+                    "20000",
+                    "--require",
+                    "tsx/cjs",
+                    "src/mocha/*.test.ts"
+                ],
+                "timeout": 90,
                 "noutput": 65536
             }
         ]

@@ -1,44 +1,12 @@
 # temporal-codeapi-demo
 
-Run real Temporal code from a web page with nothing installed.
-This prototype uses [Codapi](https://codapi.org) to embed runnable, editable examples for the Python, Go, Java, and TypeScript SDKs.
-Every run gets its own throwaway Temporal dev server, Worker, and Client inside an isolated container.
-
-## How it works
-
-```
-browser (codapi-js widget)
-   │  POST /v1/exec {sandbox, command, files}
-   ▼
-Codapi server (bin/codapi, port 1313)
-   │  docker run --rm --network none --cpus 1 --memory … temporal-codapi/<sdk>
-   ▼
-temporal-run (inside the container)
-   1. starts `temporal server start-dev --headless` on 127.0.0.1 (in-memory SQLite)
-   2. waits for the health check
-   3. copies the learner's files next to the preinstalled SDK and runs them
-   4. with --history, prints `temporal workflow show` for every Workflow the program started
-```
-
-The container has no network, so the dev server, Worker, and Client all talk over loopback.
-Nothing survives the run, and no state is shared between learners.
-
-Each SDK is a Codapi sandbox under `codapi/sandboxes/temporal-<sdk>/` with a `Dockerfile`, a `box.json` (resource limits), and a `commands.json`.
-Every sandbox has two commands: `run` (program output) and `history` (program output plus each Workflow's Event History).
-
-| SDK | Entry file | How it runs | Preinstalled |
-|---|---|---|---|
-| Python | `main.py` | `python run_program.py main.py` | `temporalio` in a uv-managed venv |
-| Go | `main.go` | `go run .` | SDK module and a primed build cache |
-| Java | `Main.java` | single-file source launcher (`java Main.java`) | SDK jars on `CLASSPATH`, JDK 25 |
-| TypeScript | `main.ts` (+ `workflows.ts`, `activities.ts`) | `node main.ts` with built-in type stripping | SDK packages, Node 24 |
-
-## Requirements
-
-- Docker. On macOS with Colima, only paths under `$HOME` can be mounted into containers; `just serve` handles this by pointing Codapi's temp dir at `.tmp/codapi`.
-- [just](https://github.com/casey/just) and [uv](https://docs.astral.sh/uv/).
+A prototype of the learn.temporal.io tutorial **Build a Temporal Application from scratch** that runs entirely in the browser, in Python, Go, Java, and TypeScript.
+Learners read the real tutorial text, run the real code, run its tests, explore each run in the Temporal Web UI, and switch off the network to watch Temporal retry failed Activities.
+Every run gets its own Temporal Service, Worker, and client in an isolated container, built on [Codapi](https://codapi.org).
 
 ## Quick start
+
+You need Docker (Colima works), [just](https://github.com/casey/just), and [uv](https://docs.astral.sh/uv/).
 
 ```bash
 just build
@@ -49,61 +17,71 @@ just install-codapi
 ```
 
 ```bash
+just up
+```
+
+```bash
 just serve
 ```
 
-In a second terminal:
+Then open <http://localhost:3129/>.
+`just build` builds the gateway, the shared base image, and one sandbox image per language; `just up` starts the gateway; `just serve` runs Codapi in the foreground.
 
-```bash
-just web
-```
+If Docker stops (for example Colima after a sleep), bring everything back with `colima start`, `docker context use colima`, and `just up`.
 
-Then open <http://localhost:8080/web/>.
-
-To run the smoke tests (they need `just serve` running):
+To check everything (ruff, mypy, the gateway's Go tests, and end-to-end smoke tests against the running stack):
 
 ```bash
 just check
 ```
 
-## Layout
+## How it works
 
 ```
-codapi/
-  codapi.json                 server config: worker pool size and default (tight) box limits
-  sandboxes/
-    shared/                   base image: Temporal CLI + the temporal-run harness
-    temporal-python/          box.json, commands.json, Dockerfile, run_program.py
-    temporal-go/
-    temporal-java/
-    temporal-typescript/
-examples/                     the Hello World programs, one per SDK
-web/index.html                demo page; loads examples/ at runtime
-tests/test_sandboxes.py       end-to-end tests through a live Codapi server
+browser (web/*.html + tutorial.js)
+   │  pages, network switch API, Web UI      ┌──────────────── gateway (Go, :3129 / :3128) ────────────────┐
+   ├────────────────────────────────────────►│ serves web/ and examples/                                  │
+   │                                         │ per-session network switch: /api/sessions/{id}/network       │
+   │                                         │ per-session Web UI reverse proxy: /ui/{id}/…                 │
+   │                                         │ forward proxy: the sandbox network's only way out,          │
+   │                                         │   allowing only icanhazip.com and ip-api.com                 │
+   │                                         └──────────────▲───────────────────────────────▲────────────────┘
+   │  POST /v1/exec (all files + session ID + name)          │ registration, HTTP egress     │ Web UI
+   ▼                                                         │                               │
+Codapi (:1313) ── docker run --detach ──► sandbox container on an internal network ──────────┘
+                  docker exec          ─► temporal-serve: dev server + Web UI under /ui/{session}, lingers 10 min
+                                          temporal-run:   Worker in the background, client in the foreground
 ```
 
-## Measurements
+- **Sandboxes** (`codapi/sandboxes/temporal-<language>/`): one image per SDK with dependencies preinstalled and caches pre-warmed by running the tutorial's tests at build time. Each has `run`, `history`, and `test` commands.
+- **Gateway** (`gateway/`): learners' network switch, Web UI routing, and the egress allowlist. When a learner's switch is off, the proxy returns `503` to their container, so Activities fail and Temporal retries them.
+- **Pages** (`web/`): `tutorial.js` renders `web/tutorials/<language>.md` with marked, swaps each `<!--SNIPSTART id-->` block for the live snippet from `examples/` (marked with `@@@SNIPSTART` comments, like Temporal's snipsync), and wires up run consoles, the network switch, the embedded Web UI, and quizzes. While a run waits on retries, the console reads the run's pending Activities from the Web UI API and prints one line per failed attempt.
 
-Measured on an Apple Silicon Mac through Colima (4 CPUs, 8 GB), each box capped at 1 CPU.
-Times are Codapi's reported `duration` for a warm image, median of 5 runs.
-They include starting the dev server, starting the Worker, running the Workflow, and shutting down.
+## Tutorial content
 
-| SDK | Run time | Peak memory | Image size |
-|---|---|---|---|
-| Python | 1.4 s | 102 MiB | 560 MB |
-| Go | 1.6 s | 173 MiB | 2.0 GB |
-| Java | 2.6 s | 229 MiB | 863 MB |
-| TypeScript | 2.7 s | 293 MiB | 1.1 GB |
+`web/tutorials/source/` holds untouched copies of the live learn.temporal.io tutorials (from `temporalio/temporal-learning`, MIT licensed).
+The playground pages are those copies with surgical edits, so every change can be reviewed as a diff:
 
-With four concurrent runs (one per SDK), each run took 7 to 30 percent longer, Python the most.
+| Page | Base text | Edits |
+|---|---|---|
+| Go | Go tutorial | Playground only |
+| TypeScript | TypeScript tutorial | Playground only |
+| Python | Go tutorial | Python specifics plus playground |
+| Java | Go tutorial | Java specifics plus playground |
+
+```bash
+git diff --no-index web/tutorials/source/go.md web/tutorials/python.md
+```
+
+Playground edits are the same on every page: a playground note in Prerequisites, local setup steps in a collapsed `:::setup` block, an "In the playground…" sentence after each local-only instruction, Run and Run tests buttons, two exercise buttons (a failing test and a five-attempt retry limit), the network switch, the Web UI panel, and the review questions as a quiz.
+
+The code in `examples/go` and `examples/typescript` is adapted from `temporalio/temporal-tutorial-ipgeo-go` and `-ts`; `examples/python` and `examples/java` mirror it.
+In all four, the greeting says "the machine running this code" because in the playground the Activities report the server's IP address and location, not the learner's.
 
 ## Things worth knowing
 
-- **Python exit hang.** Under CPU contention, the Python SDK can hang during interpreter shutdown after the program finishes ([temporalio/sdk-python#300](https://github.com/temporalio/sdk-python/issues/300)).
-  `run_program.py` runs the learner's file and then exits with `os._exit` to skip finalization.
-  Before this, roughly 1 in 15 batches of four parallel runs hit the 30-second timeout; `TestConcurrency` guards against regressions.
-- **Busy responses.** Codapi rejects requests beyond `pool_size` (4 here) right away with `busy: try again later` instead of queuing them.
-- **SDK logs.** The Go and TypeScript SDKs log at INFO by default (TypeScript also prints its Workflow bundle stats), so their output is noisier than Python's or Java's.
-  The examples leave the default loggers alone so the code matches what learners would write.
-- **Java warnings.** JDK 25 warns about `sun.misc.Unsafe` and native access from the SDK's shaded netty; `java.args` silences these.
-- **Exposure.** Codapi listens on all interfaces and allows any origin. Codapi's docs say to run it on a dedicated machine with no credentials on it; follow that before putting this anywhere public.
+- **Capacity.** Codapi runs at most `pool_size` (4) programs at once and answers `busy` beyond that. Each run's Temporal Service then lingers for up to 10 minutes (about 100 MB idle) so the Web UI works, but a learner's next run replaces it.
+- **ip-api.com rate limit.** Every learner shares the server's IP address, and ip-api.com's free tier allows 45 requests a minute per IP. A busy page will see the location Activity fail and retry.
+- **Screenshots.** The Python and Java pages reuse the Go tutorial's Web UI screenshots, which show Go names.
+- **Python exit hang.** Python programs run through `run_program.py`, which exits with `os._exit` to avoid an SDK finalization hang under CPU contention ([temporalio/sdk-python#300](https://github.com/temporalio/sdk-python/issues/300)).
+- **Exposure.** This is a local demo. The containers run learner code and can reach each other's Web UIs on the internal network; before hosting it publicly, follow Codapi's guidance to run it on a dedicated machine and add per-learner network isolation.

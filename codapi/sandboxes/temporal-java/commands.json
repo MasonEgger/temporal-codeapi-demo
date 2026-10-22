@@ -1,24 +1,97 @@
 {
     "run": {
         "engine": "docker",
-        "entry": "Main.java",
+        "entry": "src/main/java/iplocate/IPLocateClient.java",
         "steps": [
             {
                 "box": "temporal-java",
-                "command": ["temporal-run", "java", "@/opt/temporal/java.args", "Main.java"],
-                "timeout": 30,
+                "detach": true,
+                "command": [
+                    "temporal-serve"
+                ]
+            },
+            {
+                "box": ":name",
+                "action": "exec",
+                "command": [
+                    "temporal-run",
+                    "--pass-name",
+                    "--prepare",
+                    "javac -d /tmp/classes -cp '/opt/temporal/libs/*' $(find src/main/java -name '*.java')",
+                    "--worker",
+                    "exec java @/opt/temporal/java.args -cp '/tmp/classes:/opt/temporal/libs/*' iplocate.IPLocateWorker",
+                    "--",
+                    "java",
+                    "@/opt/temporal/java.args",
+                    "-cp",
+                    "/tmp/classes:/opt/temporal/libs/*",
+                    "iplocate.IPLocateClient"
+                ],
+                "timeout": 120,
                 "noutput": 65536
             }
         ]
     },
     "history": {
         "engine": "docker",
-        "entry": "Main.java",
+        "entry": "src/main/java/iplocate/IPLocateClient.java",
         "steps": [
             {
                 "box": "temporal-java",
-                "command": ["temporal-run", "--history", "java", "@/opt/temporal/java.args", "Main.java"],
-                "timeout": 30,
+                "detach": true,
+                "command": [
+                    "temporal-serve"
+                ]
+            },
+            {
+                "box": ":name",
+                "action": "exec",
+                "command": [
+                    "temporal-run",
+                    "--pass-name",
+                    "--history",
+                    "--prepare",
+                    "javac -d /tmp/classes -cp '/opt/temporal/libs/*' $(find src/main/java -name '*.java')",
+                    "--worker",
+                    "exec java @/opt/temporal/java.args -cp '/tmp/classes:/opt/temporal/libs/*' iplocate.IPLocateWorker",
+                    "--",
+                    "java",
+                    "@/opt/temporal/java.args",
+                    "-cp",
+                    "/tmp/classes:/opt/temporal/libs/*",
+                    "iplocate.IPLocateClient"
+                ],
+                "timeout": 120,
+                "noutput": 65536
+            }
+        ]
+    },
+    "test": {
+        "engine": "docker",
+        "entry": "src/test/java/iplocate/GetAddressFromIPWorkflowTest.java",
+        "steps": [
+            {
+                "box": "temporal-java",
+                "command": [
+                    "temporal-run",
+                    "--no-server",
+                    "--prepare",
+                    "javac -d /tmp/classes -cp '/opt/temporal/libs/*' $(find src -name '*.java')",
+                    "--",
+                    "java",
+                    "@/opt/temporal/java.args",
+                    "-Xshare:off",
+                    "-cp",
+                    "/tmp/classes:/opt/temporal/libs/*",
+                    "org.junit.platform.console.ConsoleLauncher",
+                    "execute",
+                    "--scan-classpath",
+                    "/tmp/classes",
+                    "--disable-banner",
+                    "--disable-ansi-colors",
+                    "--details=tree"
+                ],
+                "timeout": 90,
                 "noutput": 65536
             }
         ]

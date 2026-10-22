@@ -1,53 +1,101 @@
 #!/usr/bin/env bash
-# ABOUTME: Codapi entrypoint shared by every Temporal sandbox image.
-# ABOUTME: Starts a throwaway dev server, runs the learner's program, then optionally prints event histories.
+# ABOUTME: Codapi step that runs a learner's Temporal program, shared by every SDK sandbox image.
+# Runs the Worker in the background and the client in the foreground, like the tutorial's two terminals.
 #
-# Usage: temporal-run [--history] <command> [args...]
+# Usage: temporal-run [options] -- <client command...>
 #
-# Codapi mounts the learner's files read-only at /sandbox. This script copies them
-# into the image's prepared project directory ($TEMPORAL_APP_DIR), where the SDK
-# dependencies already live, and runs the language command from there.
+#   --prepare CMD   shell command to run first, such as a compile step
+#   --worker CMD    shell command that starts the Worker; it runs in the background and is stopped
+#                   when the client exits (start it with `exec` so signals reach the Worker)
+#   --pass-name     append the learner's name (from /sandbox/name.txt) to the client command
+#   --history       after the client exits, print the Event History of every Workflow
+#   --no-server     skip waiting for the dev server; for tests, which bring their own environment
+#
+# Codapi mounts the learner's files read-only at /sandbox. They are copied into the image's
+# prepared project directory ($TEMPORAL_APP_DIR), where the SDK dependencies already live.
 set -euo pipefail
 
+prepare_command=""
+worker_command=""
+pass_name=false
 show_history=false
-if [[ "${1:-}" == "--history" ]]; then
-    show_history=true
-    shift
-fi
-
-# Start an in-memory, headless dev server that lives only as long as this container.
-temporal server start-dev \
-    --headless \
-    --ip 127.0.0.1 \
-    --log-level error \
-    >/tmp/temporal-server.log 2>&1 &
-
-# Wait up to 10 seconds for the frontend service to answer health checks.
-for _ in $(seq 1 100); do
-    if temporal operator cluster health >/dev/null 2>&1; then
-        break
-    fi
-    sleep 0.1
+use_server=true
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --prepare) prepare_command="$2"; shift 2 ;;
+        --worker) worker_command="$2"; shift 2 ;;
+        --pass-name) pass_name=true; shift ;;
+        --history) show_history=true; shift ;;
+        --no-server) use_server=false; shift ;;
+        --) shift; break ;;
+        *) echo "temporal-run: unknown option $1" >&2; exit 2 ;;
+    esac
 done
-if ! temporal operator cluster health >/dev/null 2>&1; then
-    echo "Temporal dev server failed to start:" >&2
-    cat /tmp/temporal-server.log >&2
-    exit 1
+
+# Wait up to 15 seconds for the dev server that temporal-serve started.
+if [[ "${use_server}" == true ]]; then
+    for _ in $(seq 1 150); do
+        if temporal operator cluster health >/dev/null 2>&1; then
+            break
+        fi
+        sleep 0.1
+    done
+    if ! temporal operator cluster health >/dev/null 2>&1; then
+        echo "The Temporal dev server failed to start:" >&2
+        cat /tmp/temporal-server.log >&2
+        exit 1
+    fi
 fi
 
-# Copy the learner's files next to the prepared dependencies and run the program.
 cp -r /sandbox/. "${TEMPORAL_APP_DIR}/"
 cd "${TEMPORAL_APP_DIR}"
-exit_code=0
-"$@" || exit_code=$?
 
-# Print the event history of every Workflow the program started.
+if [[ -n "${prepare_command}" ]]; then
+    bash -c "${prepare_command}"
+fi
+
+if [[ -n "${worker_command}" ]]; then
+    bash -c "${worker_command}" >/tmp/worker.log 2>&1 &
+    worker_pid=$!
+fi
+
+client_args=("$@")
+if [[ "${pass_name}" == true ]]; then
+    name="$(head -c 100 /sandbox/name.txt 2>/dev/null | tr -d '\r\n' || true)"
+    client_args+=("${name:-Ziggy}")
+fi
+exit_code=0
+timeout --kill-after=5 "${TEMPORAL_CLIENT_TIMEOUT:-110}" "${client_args[@]}" || exit_code=$?
+
+if [[ -n "${worker_command}" ]]; then
+    # Ask the Worker to shut down, then force it if it is still running after three seconds.
+    kill -TERM "${worker_pid}" 2>/dev/null || true
+    for _ in $(seq 1 30); do
+        kill -0 "${worker_pid}" 2>/dev/null || break
+        sleep 0.1
+    done
+    kill -KILL "${worker_pid}" 2>/dev/null || true
+    if [[ -s /tmp/worker.log ]]; then
+        echo
+        echo "=== Worker output ==="
+        cat /tmp/worker.log
+    fi
+fi
+
 if [[ "${show_history}" == true ]]; then
     for workflow_id in $(temporal workflow list --output json | jq -r '.[].execution.workflowId'); do
         echo
         echo "=== Event History: ${workflow_id} ==="
         temporal workflow show --workflow-id "${workflow_id}"
+        # The table hides retries, so list each Activity's final attempt number.
+        temporal workflow show --workflow-id "${workflow_id}" --output json | jq -r '
+            .events[]
+            | select(.eventType == "EVENT_TYPE_ACTIVITY_TASK_STARTED" and (.activityTaskStartedEventAttributes.attempt // 1) > 1)
+            | "  Event \(.eventId): Activity succeeded on attempt \(.activityTaskStartedEventAttributes.attempt)"'
     done
 fi
 
+if [[ "${use_server}" == true ]]; then
+    touch /tmp/run-done
+fi
 exit "${exit_code}"

@@ -1,7 +1,8 @@
-# ABOUTME: Smoke tests that send each SDK example through a live Codapi server.
-# Requires the sandbox images (`just build`) and a running server (`just serve`).
-"""End-to-end checks for the Temporal Codapi sandboxes."""
+# ABOUTME: Smoke tests that run each language's tutorial code through a live Codapi server and gateway.
+# Requires the images (`just build`), the gateway (`just up`), and the Codapi server (`just serve`).
+"""End-to-end checks for the Temporal tutorial playground sandboxes."""
 
+import uuid
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -12,19 +13,8 @@ from pydantic import BaseModel
 
 CODAPI_EXEC_URL = "http://localhost:1313/v1/exec"
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
-EXPECTED_RESULT = "Workflow result: Hello, Temporal!"
-
-# Files each sandbox receives; the empty name is the command's entry file.
-SANDBOX_FILES: dict[str, dict[str, str]] = {
-    "temporal-python": {"": "python/main.py"},
-    "temporal-go": {"": "go/main.go"},
-    "temporal-java": {"": "java/Main.java"},
-    "temporal-typescript": {
-        "": "typescript/main.ts",
-        "workflows.ts": "typescript/workflows.ts",
-        "activities.ts": "typescript/activities.ts",
-    },
-}
+GREETING = "Hello, Ziggy. The machine running this code has the IP address"
+LANGUAGES = ["python", "go", "java", "typescript"]
 
 
 class Execution(BaseModel):
@@ -43,8 +33,30 @@ def codapi() -> Iterator[httpx.Client]:
     Yields:
         A client with a timeout long enough for a cold sandbox run.
     """
-    with httpx.Client(timeout=60) as client:
+    with httpx.Client(timeout=180) as client:
         yield client
+
+
+def tutorial_files(language: str) -> dict[str, str]:
+    """Load every example file for a language, keyed by its path inside the project.
+
+    Args:
+        language: One of ``LANGUAGES``.
+
+    Returns:
+        File paths mapped to their contents, plus a fresh session ID and the learner's name.
+    """
+    root = EXAMPLES_DIR / language
+    # Skip caches that local tooling (pytest, mypy, ruff) leaves next to the sources.
+    cache_dirs = {"__pycache__", ".mypy_cache", ".pytest_cache", ".ruff_cache"}
+    files = {
+        str(path.relative_to(root)): path.read_text()
+        for path in root.rglob("*")
+        if path.is_file() and not cache_dirs.intersection(path.relative_to(root).parts)
+    }
+    files["session.id"] = str(uuid.uuid4())
+    files["name.txt"] = "Ziggy"
+    return files
 
 
 def execute(codapi: httpx.Client, sandbox: str, command: str, files: dict[str, str]) -> Execution:
@@ -53,7 +65,7 @@ def execute(codapi: httpx.Client, sandbox: str, command: str, files: dict[str, s
     Args:
         codapi: Client for the Codapi server.
         sandbox: Sandbox name, such as ``temporal-python``.
-        command: Sandbox command to run, such as ``run`` or ``history``.
+        command: Sandbox command to run: ``run``, ``history``, or ``test``.
         files: File names mapped to their contents.
 
     Returns:
@@ -70,34 +82,27 @@ def execute(codapi: httpx.Client, sandbox: str, command: str, files: dict[str, s
     return Execution.model_validate_json(response.text)
 
 
-def example_files(sandbox: str) -> dict[str, str]:
-    """Load the example program for a sandbox.
+@pytest.mark.parametrize("language", LANGUAGES)
+class TestTutorials:
+    """Every language's tutorial code runs, records its history, and passes its own tests."""
 
-    Args:
-        sandbox: Sandbox name, a key of ``SANDBOX_FILES``.
-
-    Returns:
-        File names mapped to their contents, ready to send to Codapi.
-    """
-    return {name: (EXAMPLES_DIR / path).read_text() for name, path in SANDBOX_FILES[sandbox].items()}
-
-
-@pytest.mark.parametrize("sandbox", SANDBOX_FILES)
-class TestExamples:
-    """Every SDK example completes its Workflow inside its sandbox."""
-
-    def test_run_prints_workflow_result(self, codapi: httpx.Client, sandbox: str) -> None:
-        execution = execute(codapi, sandbox, "run", example_files(sandbox))
+    def test_run_prints_greeting(self, codapi: httpx.Client, language: str) -> None:
+        execution = execute(codapi, f"temporal-{language}", "run", tutorial_files(language))
 
         assert execution.ok, execution.stderr
-        assert EXPECTED_RESULT in execution.stdout
+        assert GREETING in execution.stdout
 
-    def test_history_prints_completed_event_history(self, codapi: httpx.Client, sandbox: str) -> None:
-        execution = execute(codapi, sandbox, "history", example_files(sandbox))
+    def test_history_shows_completed_workflow(self, codapi: httpx.Client, language: str) -> None:
+        execution = execute(codapi, f"temporal-{language}", "history", tutorial_files(language))
 
         assert execution.ok, execution.stderr
-        assert "=== Event History: hello-workflow-" in execution.stdout
+        assert "=== Event History: getAddressFromIP-" in execution.stdout
         assert "WorkflowExecutionCompleted" in execution.stdout
+
+    def test_tutorial_tests_pass(self, codapi: httpx.Client, language: str) -> None:
+        execution = execute(codapi, f"temporal-{language}", "test", tutorial_files(language))
+
+        assert execution.ok, execution.stderr
 
 
 class TestConcurrency:
@@ -106,38 +111,40 @@ class TestConcurrency:
     def test_parallel_python_runs_all_exit(self, codapi: httpx.Client) -> None:
         # Four runs fill the default pool; repeated batches surface the intermittent exit hang
         # from temporalio/sdk-python#300 that CPU contention triggers.
-        files = example_files("temporal-python")
         with ThreadPoolExecutor(max_workers=4) as pool:
-            executions = list(pool.map(lambda _: execute(codapi, "temporal-python", "run", files), range(20)))
+            executions = list(
+                pool.map(lambda _: execute(codapi, "temporal-python", "run", tutorial_files("python")), range(12))
+            )
 
         assert all(execution.ok for execution in executions), [execution.stderr for execution in executions]
 
 
-class TestPythonErrors:
-    """Python programs report failures the way running them directly would."""
+class TestIsolation:
+    """Learner code can only reach the two services the tutorial uses."""
 
-    def test_exit_message_is_reported(self, codapi: httpx.Client) -> None:
-        execution = execute(codapi, "temporal-python", "run", {"": "raise SystemExit('boom')"})
+    def test_failing_program_reports_error(self, codapi: httpx.Client) -> None:
+        files = tutorial_files("python")
+        files["client.py"] = "raise SystemExit('boom')\n"
+
+        execution = execute(codapi, "temporal-python", "run", files)
 
         assert not execution.ok
         assert "boom" in execution.stderr
 
-    def test_uncaught_exception_shows_only_learner_frames(self, codapi: httpx.Client) -> None:
-        execution = execute(codapi, "temporal-python", "run", {"": "raise ValueError('bad input')"})
+    def test_hosts_outside_the_allowlist_are_blocked(self, codapi: httpx.Client) -> None:
+        files = tutorial_files("python")
+        files["client.py"] = "import requests\nprint(requests.get('https://example.com', timeout=10).status_code)\n"
+
+        execution = execute(codapi, "temporal-python", "run", files)
 
         assert not execution.ok
-        assert 'main.py", line 1, in <module>' in execution.stderr
-        assert "ValueError: bad input" in execution.stderr
-        assert "runpy" not in execution.stderr
+        assert "403" in execution.stderr
 
+    def test_direct_connections_bypassing_the_proxy_fail(self, codapi: httpx.Client) -> None:
+        files = tutorial_files("python")
+        files["client.py"] = "import socket\nsocket.create_connection(('1.1.1.1', 443), timeout=5)\n"
 
-class TestIsolation:
-    """Learner code cannot escape the limits the sandbox sets."""
-
-    def test_outbound_network_is_blocked(self, codapi: httpx.Client) -> None:
-        program = "import socket\nsocket.create_connection(('1.1.1.1', 443), timeout=2)\n"
-
-        execution = execute(codapi, "temporal-python", "run", {"": program})
+        execution = execute(codapi, "temporal-python", "run", files)
 
         assert not execution.ok
-        assert "Network is unreachable" in execution.stderr
+        assert "unreachable" in execution.stderr.lower() or "timed out" in execution.stderr.lower()

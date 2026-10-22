@@ -1,7 +1,9 @@
 {
     "image": "temporal-codapi/python",
     "cpu": 1,
-    "memory": 512,
+    "memory": 768,
+    "network": "temporal-codapi-sandbox",
     "writable": true,
-    "nproc": 512
+    "nproc": 512,
+    "ulimit": ["nofile=1024"]
 }

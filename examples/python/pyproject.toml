@@ -1,0 +1,31 @@
+[project]
+name = "temporal-ip-geolocation"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = ["temporalio", "requests"]
+
+[dependency-groups]
+dev = [
+    "ruff",
+    "mypy",
+    "pytest",
+    "pytest-cov",
+    "pytest-asyncio",
+    "types-requests",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "UP", "B", "SIM", "C4", "TC"]
+
+[tool.mypy]
+strict = true
+
+[tool.uv]
+package = false

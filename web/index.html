@@ -1,160 +1,31 @@
 <!doctype html>
-<!-- ABOUTME: Demo page embedding runnable Temporal examples for each SDK via the Codapi widget.
-     Loads the example sources from ../examples so the page and the smoke tests share one copy. -->
+<!-- ABOUTME: Landing page for the Temporal tutorial playground.
+     Links to the "Build a Temporal Application from scratch" tutorial in each supported language. -->
 <html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Temporal Playground</title>
-    <link rel="stylesheet" href="https://unpkg.com/@antonz/codapi@0.20.1/dist/snippet.css">
-    <style>
-        :root {
-            --bg: #ffffff;
-            --fg: #141414;
-            --muted: #5c5c66;
-            --border: #dcdce3;
-            --surface: #f5f5f8;
-            --accent: #444ce7;
-        }
-        @media (prefers-color-scheme: dark) {
-            :root {
-                --bg: #111114;
-                --fg: #ececf1;
-                --muted: #a0a0ad;
-                --border: #2e2e36;
-                --surface: #1b1b21;
-                --accent: #8a90ff;
-            }
-        }
-        * { box-sizing: border-box; }
-        body {
-            margin: 0;
-            background: var(--bg);
-            color: var(--fg);
-            font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
-        }
-        main { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
-        h1 { font-size: 1.75rem; margin: 0 0 8px; }
-        .lede { color: var(--muted); margin: 0 0 24px; }
-        [role="tablist"] { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 20px; flex-wrap: wrap; }
-        [role="tab"] {
-            font: inherit;
-            background: none;
-            color: var(--muted);
-            border: none;
-            border-bottom: 2px solid transparent;
-            padding: 8px 14px;
-            cursor: pointer;
-        }
-        [role="tab"][aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); font-weight: 600; }
-        .file-name { font: 600 0.85rem ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); margin: 20px 0 6px; }
-        pre {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 14px 16px;
-            overflow-x: auto;
-            font: 0.85rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
-            margin: 0;
-        }
-        codapi-snippet { display: block; margin-top: 8px; }
-        codapi-output pre { max-height: 420px; overflow-y: auto; }
-        .error { color: #d13030; }
-    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600&display=swap">
+    <link rel="stylesheet" href="tutorial.css">
 </head>
 <body>
 <main>
-    <h1>Temporal Playground</h1>
-    <p class="lede">
-        Edit and run real Temporal code. Each run starts a fresh Temporal dev server, runs your Worker and
-        Client in an isolated container, and throws everything away when it finishes.
-        Click <strong>Event History</strong> to see what the server recorded.
+    <h1>Build a Temporal Application in your browser</h1>
+    <p>
+        Write nothing, install nothing.
+        Each tutorial walks through a real Temporal Application, and every run gets its own Temporal Service, Worker, and client.
+        You can watch each run in the Temporal Web UI, and switch off the network to see Temporal retry failed Activities.
     </p>
-    <div role="tablist" id="tabs"></div>
-    <div id="panels"></div>
+    <p>Pick a language to start <strong>Build a Temporal Application from scratch</strong>:</p>
+    <ul class="language-list">
+        <li><a href="python.html">Python<span>temporalio</span></a></li>
+        <li><a href="go.html">Go<span>go.temporal.io/sdk</span></a></li>
+        <li><a href="java.html">Java<span>io.temporal:temporal-sdk</span></a></li>
+        <li><a href="typescript.html">TypeScript<span>@temporalio/*</span></a></li>
+    </ul>
 </main>
-
-<codapi-settings url="http://localhost:1313/v1"></codapi-settings>
-<script src="https://unpkg.com/@antonz/codapi@0.20.1/dist/settings.js"></script>
-<script src="https://unpkg.com/@antonz/codapi@0.20.1/dist/snippet.js"></script>
-<script>
-    // Each SDK lists supporting files first and its entry file (the one with Run) last.
-    const SDKS = [
-        { key: "python", label: "Python", sandbox: "temporal-python", files: ["python/main.py"] },
-        { key: "go", label: "Go", sandbox: "temporal-go", files: ["go/main.go"] },
-        { key: "java", label: "Java", sandbox: "temporal-java", files: ["java/Main.java"] },
-        {
-            key: "typescript",
-            label: "TypeScript",
-            sandbox: "temporal-typescript",
-            files: ["typescript/workflows.ts", "typescript/activities.ts", "typescript/main.ts"],
-        },
-    ];
-
-    const tabs = document.getElementById("tabs");
-    const panels = document.getElementById("panels");
-
-    function selectTab(key) {
-        for (const tab of tabs.children) {
-            tab.setAttribute("aria-selected", String(tab.dataset.key === key));
-        }
-        for (const panel of panels.children) {
-            panel.hidden = panel.dataset.key !== key;
-        }
-    }
-
-    async function renderPanel(sdk, panel) {
-        const sources = await Promise.all(
-            sdk.files.map(async (path) => {
-                const response = await fetch(`../examples/${path}`);
-                if (!response.ok) throw new Error(`Could not load ${path} (${response.status})`);
-                return { name: path.split("/").pop(), text: await response.text() };
-            }),
-        );
-        const supporting = sources.slice(0, -1).map((source) => `#${source.name}`);
-
-        sources.forEach((source, index) => {
-            const label = document.createElement("div");
-            label.className = "file-name";
-            label.textContent = source.name;
-
-            const pre = document.createElement("pre");
-            const code = document.createElement("code");
-            code.textContent = source.text.trimEnd();
-            pre.append(code);
-
-            // Supporting files are editable but not runnable; the entry snippet sends them along by id.
-            const snippet = document.createElement("codapi-snippet");
-            snippet.setAttribute("editor", "basic");
-            if (index === sources.length - 1) {
-                snippet.setAttribute("sandbox", sdk.sandbox);
-                snippet.setAttribute("actions", "Event_History:history");
-                if (supporting.length) snippet.setAttribute("files", supporting.join(" "));
-            } else {
-                snippet.id = source.name;
-            }
-            panel.append(label, pre, snippet);
-        });
-    }
-
-    for (const sdk of SDKS) {
-        const tab = document.createElement("button");
-        tab.setAttribute("role", "tab");
-        tab.dataset.key = sdk.key;
-        tab.textContent = sdk.label;
-        tab.addEventListener("click", () => selectTab(sdk.key));
-        tabs.append(tab);
-
-        const panel = document.createElement("section");
-        panel.setAttribute("role", "tabpanel");
-        panel.dataset.key = sdk.key;
-        panels.append(panel);
-        renderPanel(sdk, panel).catch((error) => {
-            panel.innerHTML = `<p class="error"></p>`;
-            panel.firstChild.textContent = error.message;
-        });
-    }
-    selectTab(SDKS[0].key);
-</script>
 </body>
 </html>

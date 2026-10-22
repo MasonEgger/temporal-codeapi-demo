@@ -1,8 +1,11 @@
 {
     "image": "temporal-codapi/java",
     "cpu": 1,
-    "memory": 1024,
+    "memory": 1536,
+    "network": "temporal-codapi-sandbox",
     "writable": true,
-    "nproc": 512,
-    "ulimit": ["nofile=1024"]
+    "nproc": 1024,
+    "ulimit": [
+        "nofile=1024"
+    ]
 }

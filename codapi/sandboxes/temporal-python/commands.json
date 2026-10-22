@@ -1,24 +1,83 @@
 {
     "run": {
         "engine": "docker",
-        "entry": "main.py",
+        "entry": "client.py",
         "steps": [
             {
                 "box": "temporal-python",
-                "command": ["temporal-run", "python", "/opt/temporal/run_program.py", "main.py"],
-                "timeout": 30,
+                "detach": true,
+                "command": [
+                    "temporal-serve"
+                ]
+            },
+            {
+                "box": ":name",
+                "action": "exec",
+                "command": [
+                    "temporal-run",
+                    "--pass-name",
+                    "--worker",
+                    "exec python /opt/temporal/run_program.py worker.py",
+                    "--",
+                    "python",
+                    "/opt/temporal/run_program.py",
+                    "client.py"
+                ],
+                "timeout": 120,
                 "noutput": 65536
             }
         ]
     },
     "history": {
         "engine": "docker",
-        "entry": "main.py",
+        "entry": "client.py",
         "steps": [
             {
                 "box": "temporal-python",
-                "command": ["temporal-run", "--history", "python", "/opt/temporal/run_program.py", "main.py"],
-                "timeout": 30,
+                "detach": true,
+                "command": [
+                    "temporal-serve"
+                ]
+            },
+            {
+                "box": ":name",
+                "action": "exec",
+                "command": [
+                    "temporal-run",
+                    "--pass-name",
+                    "--history",
+                    "--worker",
+                    "exec python /opt/temporal/run_program.py worker.py",
+                    "--",
+                    "python",
+                    "/opt/temporal/run_program.py",
+                    "client.py"
+                ],
+                "timeout": 120,
+                "noutput": 65536
+            }
+        ]
+    },
+    "test": {
+        "engine": "docker",
+        "entry": "tests/test_workflows.py",
+        "steps": [
+            {
+                "box": "temporal-python",
+                "command": [
+                    "temporal-run",
+                    "--no-server",
+                    "--",
+                    "python",
+                    "/opt/temporal/run_program.py",
+                    "-m",
+                    "pytest",
+                    "-v",
+                    "-p",
+                    "no:cacheprovider",
+                    "tests"
+                ],
+                "timeout": 90,
                 "noutput": 65536
             }
         ]
