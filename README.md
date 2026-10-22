@@ -26,6 +26,7 @@ just serve
 
 Then open <http://localhost:3129/>.
 `just build` builds the gateway, the shared base image, and one sandbox image per language; `just up` starts the gateway; `just serve` runs Codapi in the foreground.
+The gateway forwards `/v1/` to Codapi, so the browser only ever talks to port 3129.
 
 If Docker stops (for example Colima after a sleep), bring everything back with `colima start`, `docker context use colima`, and `just up`.
 
@@ -47,6 +48,7 @@ browser (web/*.html + tutorial.js)
    │                                         │   allowing only icanhazip.com and ip-api.com                 │
    │                                         └──────────────▲───────────────────────────────▲────────────────┘
    │  POST /v1/exec (all files + session ID + name)          │ registration, HTTP egress     │ Web UI
+   │  forwarded by the gateway to Codapi                     │                               │
    ▼                                                         │                               │
 Codapi (:1313) ── docker run --detach ──► sandbox container on an internal network ──────────┘
                   docker exec          ─► temporal-serve: dev server + Web UI under /ui/{session}, lingers 10 min
@@ -54,7 +56,7 @@ Codapi (:1313) ── docker run --detach ──► sandbox container on an inte
 ```
 
 - **Sandboxes** (`codapi/sandboxes/temporal-<language>/`): one image per SDK with dependencies preinstalled and caches pre-warmed by running the tutorial's tests at build time. Each has `run`, `history`, and `test` commands.
-- **Gateway** (`gateway/`): learners' network switch, Web UI routing, and the egress allowlist. When a learner's switch is off, the proxy returns `503` to their container, so Activities fail and Temporal retries them.
+- **Gateway** (`gateway/`): learners' network switch, Web UI routing, the egress allowlist, and the `/v1/` route to Codapi with an optional per-address run limit. When a learner's switch is off, the proxy returns `503` to their container, so Activities fail and Temporal retries them.
 - **Pages** (`web/`): `tutorial.js` renders `web/tutorials/<language>.md` with marked, swaps each `<!--SNIPSTART id-->` block for the live snippet from `examples/` (marked with `@@@SNIPSTART` comments, like Temporal's snipsync), and wires up run consoles, the network switch, the embedded Web UI, and quizzes. While a run waits on retries, the console reads the run's pending Activities from the Web UI API and prints one line per failed attempt.
 
 ## Tutorial content
@@ -84,4 +86,9 @@ In all four, the greeting says "the machine running this code" because in the pl
 - **ip-api.com rate limit.** Every learner shares the server's IP address, and ip-api.com's free tier allows 45 requests a minute per IP. A busy page will see the location Activity fail and retry.
 - **Screenshots.** The Python and Java pages reuse the Go tutorial's Web UI screenshots, which show Go names.
 - **Python exit hang.** Python programs run through `run_program.py`, which exits with `os._exit` to avoid an SDK finalization hang under CPU contention ([temporalio/sdk-python#300](https://github.com/temporalio/sdk-python/issues/300)).
-- **Exposure.** This is a local demo. The containers run learner code and can reach each other's Web UIs on the internal network; before hosting it publicly, follow Codapi's guidance to run it on a dedicated machine and add per-learner network isolation.
+- **Exposure.** Containers run learner code. Locally they share the internal network and can reach each other's Web UIs. The hosted setup in `deploy/` runs on a dedicated droplet, drops traffic between sandboxes and from sandboxes to the host, and limits runs per client address; see `deploy/README.md`.
+
+## Hosting
+
+`deploy/` holds Terraform for a DigitalOcean droplet, firewall, and DNS record, and Ansible for everything on the droplet (Docker, Codapi under systemd, the gateway, Caddy for TLS).
+`just infra-apply`, `just deploy`, then `just smoke https://temporal.egger.codes`; `deploy/README.md` has the details and the teardown command.

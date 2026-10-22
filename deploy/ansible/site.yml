@@ -1,0 +1,12 @@
+# ABOUTME: Configures a fresh Ubuntu 24.04 droplet to run the Temporal tutorial playground end to end.
+# ABOUTME: Idempotent: rerun after changing playground_git_ref to rebuild images and restart what changed.
+---
+- name: Configure the Temporal tutorial playground droplet
+  hosts: all
+  become: true
+  roles:
+    - base
+    - docker
+    - playground
+    - codapi
+    - caddy

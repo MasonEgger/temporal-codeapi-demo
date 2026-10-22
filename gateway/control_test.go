@@ -18,7 +18,7 @@ const sessionID = "6f1c2a9e-3b7d-4c55-9e0a-1b2c3d4e5f60"
 func newSite(store *Store, uiPort string) *httptest.Server {
 	pages := fstest.MapFS{"index.html": {Data: []byte("tutorial home")}}
 	examples := fstest.MapFS{"python/shared.py": {Data: []byte("TASK_QUEUE_NAME = 'ip-address-python'")}}
-	return httptest.NewServer(NewSite(store, pages, examples, uiPort))
+	return httptest.NewServer(NewSite(store, pages, examples, SiteOptions{UIPort: uiPort}))
 }
 
 func TestSessionStatusDefaultsToNetworkOn(t *testing.T) {

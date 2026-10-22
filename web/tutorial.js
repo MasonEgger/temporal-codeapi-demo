@@ -4,7 +4,8 @@
     const body = document.body;
     const language = body.dataset.language;
     const sandbox = body.dataset.sandbox;
-    const codapiURL = body.dataset.codapiUrl || `${location.protocol}//${location.hostname}:1313/v1`;
+    // The gateway forwards /v1/ to Codapi, so the page, the API, and the Web UI share one origin.
+    const codapiURL = body.dataset.codapiUrl || "/v1";
 
     // One random session per browser tab ties runs, the network switch, and the Web UI together.
     function sessionID() {
@@ -191,7 +192,9 @@
             body: JSON.stringify({ sandbox, command, files: request }),
         });
         if (response.status === 429) {
-            throw new Error("The playground is busy running other programs. Try again in a few seconds.");
+            // The gateway's per-address run limit explains itself; Codapi's full pool does not.
+            const limited = await response.json().catch(() => null);
+            throw new Error(limited?.stderr || "The playground is busy running other programs. Try again in a few seconds.");
         }
         const result = await response.json().catch(() => null);
         if (!response.ok) {

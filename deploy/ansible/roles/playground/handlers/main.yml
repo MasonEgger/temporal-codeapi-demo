@@ -1,0 +1,17 @@
+# ABOUTME: Handlers for the playground role. "Restart codapi" lives here because the checkout task notifies it;
+# ABOUTME: handlers run at the end of the play, after the codapi role has installed the unit.
+---
+- name: Reload systemd
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Restart sandbox-isolation
+  ansible.builtin.systemd_service:
+    name: sandbox-isolation
+    state: restarted
+
+- name: Restart codapi
+  ansible.builtin.systemd_service:
+    name: codapi
+    state: restarted
+    daemon_reload: true

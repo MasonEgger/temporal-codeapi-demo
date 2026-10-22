@@ -1,0 +1,8 @@
+# Managed by Ansible. Never prunes images: the sandbox images sit idle between runs and would be removed.
+[Unit]
+Description=Remove stopped sandbox containers and stale build cache
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/docker container prune --force --filter until=24h
+ExecStart=/usr/bin/docker builder prune --force --filter until=168h

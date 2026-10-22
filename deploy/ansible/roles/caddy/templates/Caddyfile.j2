@@ -1,0 +1,11 @@
+# Managed by Ansible. Everything goes to the gateway, which serves the pages and forwards /v1/ to Codapi.
+{{ playground_hostname }} {
+	encode zstd gzip
+
+	request_body {
+		max_size 1MB
+	}
+
+	# Runs can take two minutes while a learner waits out a network outage; do not time them out here.
+	reverse_proxy 127.0.0.1:3129
+}

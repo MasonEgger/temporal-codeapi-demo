@@ -1,7 +1,11 @@
-# ABOUTME: Smoke tests that run each language's tutorial code through a live Codapi server and gateway.
+# ABOUTME: Smoke tests that run each language's tutorial code through a live gateway and Codapi server.
 # Requires the images (`just build`), the gateway (`just up`), and the Codapi server (`just serve`).
-"""End-to-end checks for the Temporal tutorial playground sandboxes."""
+"""End-to-end checks for the Temporal tutorial playground sandboxes.
 
+Set ``PLAYGROUND_URL`` to point the suite at a deployed playground instead of the local gateway.
+"""
+
+import os
 import uuid
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
@@ -11,7 +15,8 @@ import httpx
 import pytest
 from pydantic import BaseModel
 
-CODAPI_EXEC_URL = "http://localhost:1313/v1/exec"
+PLAYGROUND_URL = os.environ.get("PLAYGROUND_URL", "http://localhost:3129").rstrip("/")
+CODAPI_EXEC_URL = f"{PLAYGROUND_URL}/v1/exec"
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
 GREETING = "Hello, Ziggy. The machine running this code has the IP address"
 LANGUAGES = ["python", "go", "java", "typescript"]
@@ -28,7 +33,7 @@ class Execution(BaseModel):
 
 @pytest.fixture(scope="session")
 def codapi() -> Iterator[httpx.Client]:
-    """Yield an HTTP client for the local Codapi server.
+    """Yield an HTTP client for the playground's Codapi API.
 
     Yields:
         A client with a timeout long enough for a cold sandbox run.
@@ -60,10 +65,10 @@ def tutorial_files(language: str) -> dict[str, str]:
 
 
 def execute(codapi: httpx.Client, sandbox: str, command: str, files: dict[str, str]) -> Execution:
-    """Run files in a Codapi sandbox.
+    """Run files in a Codapi sandbox through the gateway.
 
     Args:
-        codapi: Client for the Codapi server.
+        codapi: Client for the playground's Codapi API.
         sandbox: Sandbox name, such as ``temporal-python``.
         command: Sandbox command to run: ``run``, ``history``, or ``test``.
         files: File names mapped to their contents.
@@ -72,12 +77,12 @@ def execute(codapi: httpx.Client, sandbox: str, command: str, files: dict[str, s
         The parsed execution result.
 
     Raises:
-        pytest.fail.Exception: The Codapi server is not reachable.
+        pytest.fail.Exception: The playground is not reachable.
     """
     try:
         response = codapi.post(CODAPI_EXEC_URL, json={"sandbox": sandbox, "command": command, "files": files})
     except httpx.ConnectError as error:
-        pytest.fail(f"Codapi is not reachable at {CODAPI_EXEC_URL}; start it with `just serve` ({error})")
+        pytest.fail(f"The playground is not reachable at {CODAPI_EXEC_URL}; run `just up` and `just serve` ({error})")
     response.raise_for_status()
     return Execution.model_validate_json(response.text)
 

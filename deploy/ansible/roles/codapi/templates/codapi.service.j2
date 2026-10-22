@@ -1,0 +1,17 @@
+# Managed by Ansible. Adapted from codapi.service in the Codapi release.
+[Unit]
+Description=Codapi code sandbox server for the Temporal playground
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=codapi
+WorkingDirectory={{ playground_dir }}/codapi
+Environment=TMPDIR={{ codapi_home }}/tmp
+ExecStart={{ codapi_home }}/codapi
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

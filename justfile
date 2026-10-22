@@ -39,11 +39,13 @@ up:
     # An internal network has no route out; the gateway is the only member that also has internet access.
     docker network inspect {{sandbox_network}} >/dev/null 2>&1 \
         || docker network create --internal {{sandbox_network}}
+    # The gateway forwards /v1/ to Codapi on the host, so the browser talks to one origin.
     docker run --detach --rm --name {{gateway_container}} \
         --publish 127.0.0.1:3129:3129 \
+        --add-host host.docker.internal:host-gateway \
         --volume "{{justfile_directory()}}/web:/srv/site:ro" \
         --volume "{{justfile_directory()}}/examples:/srv/examples:ro" \
-        temporal-codapi/gateway:latest
+        temporal-codapi/gateway:latest -codapi-addr host.docker.internal:1313
     docker network connect --alias gateway {{sandbox_network}} {{gateway_container}}
     echo "Gateway up: open http://localhost:3129/"
 
@@ -66,3 +68,45 @@ install-codapi:
 serve:
     mkdir -p .tmp/codapi
     cd codapi && TMPDIR="{{justfile_directory()}}/.tmp/codapi" ../bin/codapi
+
+# ---- Hosting on DigitalOcean (see deploy/README.md) --------------------------------------------
+
+terraform := "terraform -chdir=deploy/terraform"
+inventory := "deploy/ansible/inventory/hosts.yml"
+
+# Fail early when the DigitalOcean token is missing from the environment.
+_need-token:
+    #!/usr/bin/env bash
+    if [[ -z "${DIGITALOCEAN_TOKEN:-}" ]]; then
+        echo "Set DIGITALOCEAN_TOKEN first, for example from doctl's config:" >&2
+        echo "  export DIGITALOCEAN_TOKEN=\$(awk '/^access-token:/ {print \$2}' ~/.config/doctl/config.yaml)" >&2
+        exit 1
+    fi
+
+# Download the Terraform providers.
+infra-init:
+    {{terraform}} init
+
+# Show what Terraform would create or change.
+infra-plan: _need-token
+    {{terraform}} plan
+
+# Create the droplet, firewall, and DNS record, and write the Ansible inventory.
+infra-apply: _need-token
+    {{terraform}} apply
+
+# Destroy everything Terraform created. The droplet bills hourly until this runs.
+infra-destroy: _need-token
+    {{terraform}} destroy
+
+# Configure the droplet (or bring it up to date) with Ansible. Extra arguments pass through.
+deploy *args:
+    ansible-playbook -i {{inventory}} deploy/ansible/site.yml {{args}}
+
+# Open a shell on the droplet.
+deploy-ssh:
+    ssh "root@$({{terraform}} output -raw ipv4)"
+
+# Run the smoke tests against a deployed playground, for example `just smoke https://temporal.egger.codes`.
+smoke url:
+    PLAYGROUND_URL="{{url}}" uv run pytest

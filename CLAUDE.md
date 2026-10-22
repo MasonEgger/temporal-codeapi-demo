@@ -15,7 +15,13 @@ just install-codapi    # Codapi server binary into bin/ (gitignored)
 just up                # internal Docker network + gateway on :3129 (serves the site)
 just serve             # Codapi on :1313 (foreground); restart it after editing any codapi/*.json
 just check             # ruff, ruff format --check, mypy --strict, gateway go vet/test, pytest smoke tests
+just infra-apply       # Terraform: droplet, firewall, DNS record, Ansible inventory (needs DIGITALOCEAN_TOKEN)
+just deploy            # Ansible: configure the droplet; `just deploy -e playground_git_ref=<branch>` deploys a branch
+just smoke <url>       # the smoke tests against a deployed playground
+just infra-destroy     # tear the droplet down (it bills hourly)
 ```
+
+The gateway needs Go 1.25 or newer; if the local toolchain is older and cannot download one, run the gateway checks in Docker: `docker run --rm -v "$PWD/gateway":/src -w /src -e GOFLAGS=-buildvcs=false golang:1.26-bookworm sh -c 'gofmt -l . && go vet ./... && go test ./...'`.
 
 Single smoke test (needs `just up` and `just serve` running):
 
@@ -23,17 +29,20 @@ Single smoke test (needs `just up` and `just serve` running):
 uv run pytest tests/test_sandboxes.py -k "TestTutorials and go"
 ```
 
+The smoke tests post to `PLAYGROUND_URL` (default `http://localhost:3129`), always through the gateway.
+
 Gateway unit tests alone: `cd gateway && go test ./...`.
 After changing a Dockerfile, `codapi/sandboxes/shared/temporal-*`, or anything a Dockerfile copies (including `examples/` used for pre-warming), rebuild with `just build`.
 After rebuilding the gateway, `docker stop temporal-codapi-gateway && just up`.
 
 ## Architecture
 
-Request path: page (`web/<language>.html` + `web/tutorial.js`) → Codapi `POST /v1/exec` with every example file plus `session.id` and `name.txt` → Codapi `docker run --detach` (`temporal-serve`) then `docker exec` (`temporal-run`) in the same container on the internal `temporal-codapi-sandbox` network.
+Request path: page (`web/<language>.html` + `web/tutorial.js`) → gateway `POST /v1/exec` (same origin) with every example file plus `session.id` and `name.txt` → forwarded to Codapi → `docker run --detach` (`temporal-serve`) then `docker exec` (`temporal-run`) in the same container on the internal `temporal-codapi-sandbox` network.
 
 - `temporal-serve` starts `temporal server start-dev` with the Web UI at `/ui/<session>`, registers the container's IP with the gateway, and lingers up to 10 minutes or until the gateway reports a newer container for that session.
 - `temporal-run` waits for the server, copies `/sandbox` into `$TEMPORAL_APP_DIR`, runs an optional `--prepare` step, starts `--worker` in the background, runs the client (appending the learner's name with `--pass-name`), then prints the Worker log and, with `--history`, each Workflow's Event History. `--no-server` is for the `test` command.
-- `gateway/` has two listeners: `:3128` on the sandbox network (forward proxy, `/register/{session}`, `/current/{session}`) and `:3129` for browsers (site files with `Cache-Control: no-cache`, `/examples/`, `/api/sessions/{id}`, `/ui/{id}/`). Sessions, network state, and blocked counts live in memory, so restarting the gateway resets them.
+- `gateway/` has two listeners: `:3128` on the sandbox network (forward proxy, `/register/{session}`, `/current/{session}`) and `:3129` for browsers (site files with `Cache-Control: no-cache`, `/examples/`, `/api/sessions/{id}`, `/ui/{id}/`, and `/v1/` forwarded to `-codapi-addr`). `-run-rate`/`-run-burst` cap `/v1/exec` per client address (`-trust-proxy` keys on `X-Forwarded-For` behind Caddy). Sessions, network state, blocked counts, and rate buckets live in memory, so restarting the gateway resets them.
+- `deploy/` is the hosted setup: `terraform/` (droplet, firewall, DNS, writes `ansible/inventory/hosts.yml`), `ansible/` (roles base, docker, playground, codapi, caddy), `compose.yaml` (the gateway on the droplet). `spec.md` at the repo root is the deployment spec. Codapi runs as a systemd service on the droplet with `WorkingDirectory` set to the checkout's `codapi/` directory; `sandbox-isolation.service` installs the iptables rules that keep sandboxes from reaching each other or the host.
 - Sandboxes reach the internet only through `HTTP(S)_PROXY=http://gateway:3128` (Java uses the same settings via `java.args`, Node via `NODE_USE_ENV_PROXY=1`). `NO_PROXY` keeps the local dev server direct.
 
 ## Tutorial content

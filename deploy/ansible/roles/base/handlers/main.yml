@@ -1,0 +1,6 @@
+# ABOUTME: Handlers for the base role.
+---
+- name: Restart ssh
+  ansible.builtin.service:
+    name: ssh
+    state: restarted
