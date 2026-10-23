@@ -13,11 +13,17 @@ Each run gets a throwaway Temporal dev server, Worker, and client in a Codapi sa
 just build             # gateway image, shared base image, then temporal-codapi/{python,go,java,typescript}
 just install-codapi    # Codapi server binary into bin/ (gitignored)
 just up                # internal Docker network + gateway on :3129 (serves the site)
+just down              # stop the gateway container
 just serve             # Codapi on :1313 (foreground); restart it after editing any codapi/*.json
-just check             # ruff, ruff format --check, mypy --strict, gateway go vet/test, pytest smoke tests
+just check             # ruff, ruff format --check, mypy --strict, gateway go vet/test, gitleaks, pytest smoke tests
+just fmt               # ruff format, ruff check --fix, gofmt
+just test              # pytest smoke tests only
+just install-hooks     # git config core.hooksPath .githooks: gitleaks scans staged changes before every commit
 just infra-init        # Terraform providers (once)
+just infra-plan        # Terraform plan; extra args pass through, e.g. `-var git_ref=my-branch`
 just infra-apply       # Terraform: droplet, firewall, DNS record, Ansible inventory; then commit deploy/terraform/state.sops.json
 just deploy            # Ansible: configure the droplet; `just deploy -e playground_git_ref=<branch>` deploys a branch
+just infra-output      # a Terraform output, e.g. `just infra-output -raw ipv4`
 just deploy-ssh        # root shell on the droplet
 just smoke <url>       # the smoke tests against a deployed playground
 just infra-destroy     # tear the droplet down (it bills hourly); then commit state.sops.json
@@ -25,7 +31,7 @@ just sops <file>       # edit a sops-encrypted secret (secrets/terraform.sops.en
 just rekey             # re-encrypt secrets and state after changing .sops.yaml recipients
 ```
 
-Secrets follow the PyTexas/Labradillo convention: sops with age, recipients in `.sops.yaml`, `secrets/*.sops.env` consumed with `sops exec-env`, Terraform state encrypted whole-file in `deploy/terraform/state.sops.json` by the justfile's `_tf` wrapper. Never run `terraform` directly in `deploy/terraform`; go through `just infra-*` so the state is decrypted and re-encrypted. Nothing secret reaches the droplet. `.gitleaks.toml` allowlists the encrypted files.
+Secrets follow the PyTexas/Labradillo convention: sops with age, recipients in `.sops.yaml`, `secrets/*.sops.env` consumed with `sops exec-env`, Terraform state encrypted whole-file in `deploy/terraform/state.sops.json` by the justfile's `_tf` wrapper. Never run `terraform` directly in `deploy/terraform`; go through `just infra-*` so the state is decrypted and re-encrypted. Nothing secret reaches the droplet. `.gitleaks.toml` allowlists the encrypted files; `.githooks/pre-commit` runs gitleaks on staged changes and then any global pre-commit hook it displaced, and is opt-in via `just install-hooks`.
 
 Deploy-side checks: `terraform -chdir=deploy/terraform fmt -check && terraform -chdir=deploy/terraform validate`, and `ansible-lint --offline` from `deploy/ansible/` (passes the production profile; registered variables in a role must carry the role's name as a prefix).
 Ansible clones the repository from GitHub, so a change must be pushed before `just deploy` can pick it up.
@@ -42,7 +48,7 @@ The smoke tests post to `PLAYGROUND_URL` (default `http://localhost:3129`), alwa
 
 Gateway unit tests alone: `cd gateway && go test ./...`.
 After changing a Dockerfile, `codapi/sandboxes/shared/temporal-*`, or anything a Dockerfile copies (including `examples/` used for pre-warming), rebuild with `just build`.
-After rebuilding the gateway, `docker stop temporal-codapi-gateway && just up`.
+After rebuilding the gateway, `just down && just up`.
 
 ## Architecture
 
@@ -59,7 +65,9 @@ Request path: page (`web/<language>.html` + `web/tutorial.js`) → gateway `POST
 - `web/tutorials/source/*.md` are untouched copies of the live tutorials from `temporalio/temporal-learning`; ruff excludes them. Never edit them.
 - `web/tutorials/<language>.md` are copy-and-edit versions: Go and TypeScript from their own originals with playground-only edits; Python and Java from the Go original with language-specific edits. Keep the original wording wherever it still applies.
 - `<!--SNIPSTART id-->…<!--SNIPEND-->` blocks are replaced at render time by the region between `@@@SNIPSTART id` and `@@@SNIPEND` comments in `examples/<language>/`. The code shown and the code that runs are the same file.
-- Page markers: `<div class="run-block" data-command="run|history|test" …>` (exercise buttons add `data-variant-file/find/replace`), `<div class="network-switch">`, `<div class="webui">`, `<div class="quiz">`, and `:::setup Title` blocks for local-only setup steps.
+- Page markers: `<div class="run-block" data-command="run|history|test" …>` (exercise buttons add `data-variant-file/find/replace`; `data-omit-files` leaves listed files out of the request, so the first "Run the Workflow test" button runs before the Activity tests exist), `<div class="network-switch">`, `<div class="webui">`, `<div class="quiz">`, and `:::setup Title` blocks for local-only setup steps.
+- Anything a run would show live is backup and folds into a closed `<details class="sample-output">`: every ```output fence and every screenshot (an image inside a mixed paragraph is lifted out into its own accordion). No Markdown change is needed for that.
+- To check rendered pages without a local browser: `just up`, then `docker run --rm --network host zenika/alpine-chrome --no-sandbox --headless --disable-gpu --virtual-time-budget=15000 --dump-dom http://localhost:3129/python.html`.
 - Each page's `data-files` attribute must list every example file the run needs.
 
 ## Gotchas

@@ -110,6 +110,29 @@ class TestTutorials:
         assert execution.ok, execution.stderr
 
 
+# The Activity test file each page leaves out for its "Run the Workflow test" button (data-omit-files).
+ACTIVITY_TEST_FILES = {
+    "python": "tests/test_activities.py",
+    "go": "activities_test.go",
+    "java": "src/test/java/iplocate/IPActivitiesTest.java",
+    "typescript": "src/mocha/activities.test.ts",
+}
+
+
+@pytest.mark.parametrize("language", LANGUAGES)
+class TestFirstTest:
+    """The tutorial's first test run, before the Activity tests exist, runs the Workflow test alone."""
+
+    def test_workflow_test_runs_without_the_activity_tests(self, codapi: httpx.Client, language: str) -> None:
+        files = tutorial_files(language)
+        del files[ACTIVITY_TEST_FILES[language]]
+
+        execution = execute(codapi, f"temporal-{language}", "test", files)
+
+        assert execution.ok, execution.stderr
+        assert ACTIVITY_TEST_FILES[language].rsplit("/", 1)[-1].split(".")[0] not in execution.stdout
+
+
 class TestConcurrency:
     """Runs that share the Codapi worker pool still finish on time."""
 

@@ -166,7 +166,7 @@ main img { max-width: 100%; border: 1px solid var(--rule); border-radius: var(--
 
 /* ---- Code (the machine) ---- */
 /* Text, code, consoles, and the Web UI all share the one content width. */
-.tutorial-file, .run-block, .webui, details.setup { margin: 22px 0 28px; }
+.tutorial-file, .run-block, .webui, details.setup, details.sample-output { margin: 22px 0 28px; }
 .file-header {
     display: flex;
     align-items: center;
@@ -219,13 +219,13 @@ pre.sample {
 .token.operator, .token.punctuation { color: #a6abc4; }
 
 /* ---- Setup accordion ---- */
-details.setup {
+details.setup, details.sample-output {
     background: var(--surface);
     border: 1px solid var(--rule);
     border-radius: var(--radius-large);
     padding: 0 20px;
 }
-details.setup summary {
+details.setup summary, details.sample-output summary {
     cursor: pointer;
     padding: 14px 0;
     font-weight: 600;
@@ -234,8 +234,8 @@ details.setup summary {
     align-items: center;
     gap: 10px;
 }
-details.setup summary::-webkit-details-marker { display: none; }
-details.setup summary::before {
+details.setup summary::-webkit-details-marker, details.sample-output summary::-webkit-details-marker { display: none; }
+details.setup summary::before, details.sample-output summary::before {
     content: "";
     width: 8px;
     height: 8px;
@@ -244,9 +244,10 @@ details.setup summary::before {
     transform: rotate(-45deg);
     transition: transform 150ms ease;
 }
-details.setup[open] summary::before { transform: rotate(45deg); }
+details.setup[open] summary::before, details.sample-output[open] summary::before { transform: rotate(45deg); }
 details.setup .summary-hint { margin-left: auto; color: var(--ink-soft); font-weight: 400; font-size: 0.88rem; }
-details.setup[open] { padding-bottom: 8px; }
+details.setup[open], details.sample-output[open] { padding-bottom: 8px; }
+details.sample-output pre.sample { margin-top: 0; }
 
 /* ---- Run blocks and console ---- */
 .run-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }

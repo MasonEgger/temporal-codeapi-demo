@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# ABOUTME: Repo pre-commit hook: gitleaks scans the staged changes so a plaintext token never
+# ABOUTME: lands in history. Enable with `just install-hooks` (git config core.hooksPath .githooks).
+set -euo pipefail
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+    echo "pre-commit: gitleaks not installed; skipping secret scan (https://github.com/gitleaks/gitleaks)" >&2
+else
+    # .gitleaks.toml allowlists the sops-encrypted files; --redact keeps any hit out of the terminal.
+    if ! gitleaks git --pre-commit --staged --redact --no-banner --config .gitleaks.toml; then
+        cat >&2 <<'MSG'
+
+Commit aborted: gitleaks found a possible secret in the staged changes.
+Remove it, or allowlist a false positive in .gitleaks.toml. Bypass on purpose with --no-verify.
+MSG
+        exit 1
+    fi
+fi
+
+# core.hooksPath replaces every other hook location, so run the hook this one displaced, if any.
+global_hooks="$(git config --global --get core.hooksPath || true)"
+global_hooks="${global_hooks/#\~/$HOME}"
+for other in "${global_hooks:+$global_hooks/pre-commit}" "$(git rev-parse --git-dir)/hooks/pre-commit"; do
+    if [[ -n "$other" && -x "$other" ]]; then
+        exec "$other" "$@"
+    fi
+done

@@ -22,6 +22,10 @@ fmt:
     uv run ruff check --fix .
     cd gateway && gofmt -w .
 
+# Point git at .githooks/ so gitleaks scans every commit's staged changes (see .githooks/pre-commit).
+install-hooks:
+    git config core.hooksPath .githooks
+
 test:
     uv run pytest
 

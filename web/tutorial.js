@@ -148,10 +148,34 @@
             pre.className = "shell";
             code.className = "language-bash";
         } else if (code.classList.contains("language-output")) {
+            // Expected output stays available but folded, so the live console is what learners read first.
             pre.className = "sample";
+            const details = element("details", "sample-output");
+            details.append(element("summary", null, "Show the expected output"));
+            pre.replaceWith(details);
+            details.append(pre);
         } else if (!pre.classList.contains("code-block")) {
             pre.className = "shell";
         }
+    }
+    // Screenshots of the Web UI are backup for the live panel, so they fold away like sample output.
+    // The source Markdown sometimes runs a screenshot into the next sentence's paragraph; the image
+    // still gets its own accordion, placed where it was.
+    for (const image of main.querySelectorAll("p > img")) {
+        const paragraph = image.parentElement;
+        const details = element("details", "sample-output");
+        const caption = (image.alt || "").replace(/\.$/, "");
+        details.append(element("summary", null, caption ? `Show the screenshot: ${caption}` : "Show the screenshot"));
+        if (!paragraph.textContent.trim() && paragraph.children.length === 1) {
+            paragraph.replaceWith(details);
+            details.append(paragraph);
+            continue;
+        }
+        const imageIsFirst = paragraph.firstChild === image || !paragraph.firstChild.textContent.trim();
+        paragraph.insertAdjacentElement(imageIsFirst ? "beforebegin" : "afterend", details);
+        const figure = element("p");
+        figure.append(image);
+        details.append(figure);
     }
     if (window.Prism) Prism.highlightAllUnder(main);
     for (const heading of main.querySelectorAll("h2, h3")) {
@@ -169,10 +193,11 @@
 
     // ---- Running programs ----------------------------------------------------------
 
-    async function execute(command, variant) {
+    async function execute(command, variant, omit = []) {
         const request = {};
         for (const [path, text] of files) {
-            request[path] = text;
+            // A block can leave files out, so an early "run your test" button runs only the tests written so far.
+            if (!omit.includes(path)) request[path] = text;
         }
         if (variant) {
             const original = request[variant.file];
@@ -249,6 +274,7 @@
         const variant = block.dataset.variantFile
             ? { file: block.dataset.variantFile, find: block.dataset.variantFind, replace: block.dataset.variantReplace }
             : null;
+        const omit = (block.dataset.omitFiles || "").split(/\s+/).filter(Boolean);
 
         const controls = element("div", "run-controls");
         const buttons = [];
@@ -305,7 +331,7 @@
             // While the program runs, report failed Activity attempts from the run's own Temporal Service.
             const retries = runCommand === "test" ? null : watchRetries(consoleBody, started);
             try {
-                const result = await execute(runCommand, variant);
+                const result = await execute(runCommand, variant, omit);
                 retries?.stop(result.ok);
                 const seconds = (result.duration / 1000).toFixed(1);
                 const stdout = result.stdout || "";

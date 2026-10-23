@@ -514,6 +514,10 @@ The test environment starts, spins up a Worker, and executes the Workflow in the
   1 passing (723ms)
 ```
 
+In the playground, click **Run the Workflow test** to run the one test you have so far:
+
+<div class="run-block" data-command="test" data-label="Run the Workflow test" data-output-label="Mocha output" data-omit-files="src/mocha/activities.test.ts"></div>
+
 :::tip
 If you get an error that your test has timed out, run it again. The first time you run the tests on your local machine, the test server might not start quickly enough.
 :::
