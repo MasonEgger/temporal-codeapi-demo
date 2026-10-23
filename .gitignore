@@ -8,3 +8,11 @@ __pycache__/
 .ruff_cache/
 .coverage
 commit-msg.md
+
+# Deployment: decrypted state, generated inventory, and provider plugins stay local.
+# The encrypted state (deploy/terraform/state.sops.json) and secrets/*.sops.* are committed.
+deploy/terraform/.terraform/
+deploy/terraform/*.tfstate
+deploy/terraform/*.tfstate.*
+deploy/terraform/*.tfvars
+deploy/ansible/inventory/hosts.yml

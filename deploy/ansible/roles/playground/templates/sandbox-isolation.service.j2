@@ -1,0 +1,14 @@
+# Managed by Ansible.
+[Unit]
+Description=nftables rules isolating playground sandboxes from each other and the host
+After=docker.service
+Requires=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/sandbox-isolation
+
+[Install]
+WantedBy=multi-user.target

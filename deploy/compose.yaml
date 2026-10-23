@@ -1,0 +1,35 @@
+# ABOUTME: Runs the gateway on the droplet: one public-facing origin for the pages, the Codapi API, and the Web UI.
+# ABOUTME: The sandbox network is created by Ansible (fixed subnet and bridge name) so the isolation rule can name it.
+name: temporal-playground
+
+services:
+  gateway:
+    image: temporal-codapi/gateway:latest
+    container_name: temporal-codapi-gateway
+    restart: unless-stopped
+    command:
+      - -codapi-addr
+      - host.docker.internal:1313
+      - -trust-proxy
+      - -run-rate
+      - ${RUN_RATE:-20}
+      - -run-burst
+      - ${RUN_BURST:-20}
+    ports:
+      - "127.0.0.1:3129:3129"
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      - ../web:/srv/site:ro
+      - ../examples:/srv/examples:ro
+    networks:
+      default: {}
+      sandbox:
+        ipv4_address: ${GATEWAY_IP:-10.213.0.2}
+        aliases:
+          - gateway
+
+networks:
+  sandbox:
+    external: true
+    name: ${SANDBOX_NETWORK:-temporal-codapi-sandbox}

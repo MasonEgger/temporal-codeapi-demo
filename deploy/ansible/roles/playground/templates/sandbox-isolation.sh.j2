@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# ABOUTME: Keeps learners' sandbox containers from reaching each other or the host; only the gateway is allowed.
+# Managed by Ansible. Runs after Docker starts; safe to rerun (it replaces its own nftables tables).
+#
+# Docker 28+ does not load br_netfilter, so traffic between two containers on the same bridge never
+# enters the ip FORWARD hook that Docker's DOCKER-USER chain lives in. The bridge family sees every
+# forwarded frame regardless, and matching on the bridge name leaves Docker's own rules untouched.
+set -euo pipefail
+
+bridge="{{ sandbox_bridge }}"
+gateway="{{ gateway_ip }}"
+
+nft -f - <<EOF
+table bridge sandbox_isolation
+delete table bridge sandbox_isolation
+table bridge sandbox_isolation {
+    chain forward {
+        type filter hook forward priority 0; policy accept;
+        # Only frames that stay on the sandbox bridge are ours to judge.
+        meta ibrname != "${bridge}" accept
+        meta obrname != "${bridge}" accept
+        # ARP so sandboxes and the gateway can find each other, and nothing else.
+        arp daddr ip ${gateway} accept
+        arp saddr ip ${gateway} accept
+        # Either end is the gateway: Web UI proxying, registration, egress.
+        ip saddr ${gateway} accept
+        ip daddr ${gateway} accept
+        drop
+    }
+}
+
+table ip sandbox_isolation
+delete table ip sandbox_isolation
+table ip sandbox_isolation {
+    chain input {
+        type filter hook input priority filter - 10; policy accept;
+        # The host runs nothing sandboxes may call (Codapi and the Docker API answer on every interface).
+        iifname "${bridge}" drop
+    }
+}
+EOF

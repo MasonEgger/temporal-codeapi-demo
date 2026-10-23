@@ -1,0 +1,27 @@
+# ABOUTME: sops creation rules: which age recipients can decrypt which files.
+# ABOUTME: Same convention as PyTexas/infrastructure and Labradillo/infra.
+# To onboard another operator, add their age public key here and run `just rekey`.
+
+creation_rules:
+  # Operator-side dotenv secrets (the DigitalOcean token for Terraform), consumed with
+  # `sops exec-env`. They never cross to the droplet.
+  - path_regex: ^secrets/.*\.sops\.env$
+    key_groups:
+      - age:
+          # mason
+          - age17u5zkzgr4ca49sl9n42zk6aruq8d5xntnuxkhyjwvku80tx93afqm7a0fz
+
+  # Ansible-time YAML vars, if ever needed (community.sops.load_vars). Never cross to the droplet.
+  - path_regex: ^secrets/.*\.sops\.yaml$
+    key_groups:
+      - age:
+          # mason
+          - age17u5zkzgr4ca49sl9n42zk6aruq8d5xntnuxkhyjwvku80tx93afqm7a0fz
+
+  # Terraform state, encrypted whole-file and committed (no remote backend). The justfile's
+  # `_tf` wrapper decrypts it before each terraform run and re-encrypts it only when it changed.
+  - path_regex: ^deploy/terraform/state\.sops\.json$
+    key_groups:
+      - age:
+          # mason
+          - age17u5zkzgr4ca49sl9n42zk6aruq8d5xntnuxkhyjwvku80tx93afqm7a0fz
