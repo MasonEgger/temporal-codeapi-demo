@@ -1,0 +1,10 @@
+# Sandbox images build from the repo root so they can pre-warm caches with examples/.
+.git
+.venv
+.tmp
+bin
+.ai-sessions
+**/__pycache__
+**/.mypy_cache
+**/.pytest_cache
+**/.ruff_cache

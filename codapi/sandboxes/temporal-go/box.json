@@ -1,0 +1,9 @@
+{
+    "image": "temporal-codapi/go",
+    "cpu": 1,
+    "memory": 1024,
+    "network": "temporal-codapi-sandbox",
+    "writable": true,
+    "nproc": 512,
+    "ulimit": ["nofile=1024"]
+}

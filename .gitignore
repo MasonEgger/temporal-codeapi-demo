@@ -1,0 +1,10 @@
+# Local tooling and scratch
+bin/
+.tmp/
+.venv/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+commit-msg.md

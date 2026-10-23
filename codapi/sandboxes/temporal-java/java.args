@@ -1,0 +1,15 @@
+# ABOUTME: JVM flags for learner programs in the temporal-java sandbox, passed to java as an @argfile.
+# Serial GC and C1-only JIT trade peak throughput for faster startup; the rest route HTTP and silence warnings.
+-XX:+UseSerialGC
+-XX:TieredStopAtLevel=1
+--sun-misc-unsafe-memory-access=allow
+--enable-native-access=ALL-UNNAMED
+-XX:+EnableDynamicAgentLoading
+-Dorg.slf4j.simpleLogger.defaultLogLevel=warn
+-Dio.grpc.netty.shaded.io.netty.machineId=00:00:00:00:00:00:00:01
+# The only route out is the gateway's allowlisting proxy; the dev server stays on loopback.
+-Dhttp.proxyHost=gateway
+-Dhttp.proxyPort=3128
+-Dhttps.proxyHost=gateway
+-Dhttps.proxyPort=3128
+-Dhttp.nonProxyHosts=localhost|127.0.0.1

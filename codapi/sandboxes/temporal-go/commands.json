@@ -1,0 +1,82 @@
+{
+    "run": {
+        "engine": "docker",
+        "entry": "client/main.go",
+        "steps": [
+            {
+                "box": "temporal-go",
+                "detach": true,
+                "command": [
+                    "temporal-serve"
+                ]
+            },
+            {
+                "box": ":name",
+                "action": "exec",
+                "command": [
+                    "temporal-run",
+                    "--pass-name",
+                    "--prepare",
+                    "go build -o /tmp/bin/ ./worker ./client",
+                    "--worker",
+                    "exec /tmp/bin/worker",
+                    "--",
+                    "/tmp/bin/client"
+                ],
+                "timeout": 120,
+                "noutput": 65536
+            }
+        ]
+    },
+    "history": {
+        "engine": "docker",
+        "entry": "client/main.go",
+        "steps": [
+            {
+                "box": "temporal-go",
+                "detach": true,
+                "command": [
+                    "temporal-serve"
+                ]
+            },
+            {
+                "box": ":name",
+                "action": "exec",
+                "command": [
+                    "temporal-run",
+                    "--pass-name",
+                    "--history",
+                    "--prepare",
+                    "go build -o /tmp/bin/ ./worker ./client",
+                    "--worker",
+                    "exec /tmp/bin/worker",
+                    "--",
+                    "/tmp/bin/client"
+                ],
+                "timeout": 120,
+                "noutput": 65536
+            }
+        ]
+    },
+    "test": {
+        "engine": "docker",
+        "entry": "workflows_test.go",
+        "steps": [
+            {
+                "box": "temporal-go",
+                "command": [
+                    "temporal-run",
+                    "--no-server",
+                    "--",
+                    "go",
+                    "test",
+                    "-count=1",
+                    "-v",
+                    "./..."
+                ],
+                "timeout": 90,
+                "noutput": 65536
+            }
+        ]
+    }
+}
