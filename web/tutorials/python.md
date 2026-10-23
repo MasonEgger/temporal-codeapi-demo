@@ -423,7 +423,7 @@ Your Temporal Application works. Now review it in the Temporal Web UI.
 
 ## Exploring your application in the Web UI
 
-The Temporal Web UI gives you insights into your Workflow's execution. Open the Temporal Web UI by visiting `http://localhost:8233` and click on your completed Workflow to view the execution history. In the playground, use the panel below, which shows the Temporal Service from your most recent run. You'll see results similar to the following image:
+The Temporal Web UI gives you insights into your Workflow's execution. Open the Temporal Web UI by visiting `http://localhost:8233` and click on your completed Workflow to view the execution history. In the playground, use the panel below, which shows this session's Temporal Service; every run you make on this page appears there. You'll see results similar to the following image:
 
 <div class="webui"></div>
 

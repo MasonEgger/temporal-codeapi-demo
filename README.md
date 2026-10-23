@@ -38,22 +38,7 @@ just check
 
 ## How it works
 
-```
-browser (web/*.html + tutorial.js)
-   │  pages, network switch API, Web UI      ┌──────────────── gateway (Go, :3129 / :3128) ────────────────┐
-   ├────────────────────────────────────────►│ serves web/ and examples/                                  │
-   │                                         │ per-session network switch: /api/sessions/{id}/network       │
-   │                                         │ per-session Web UI reverse proxy: /ui/{id}/…                 │
-   │                                         │ forward proxy: the sandbox network's only way out,          │
-   │                                         │   allowing only icanhazip.com and ip-api.com                 │
-   │                                         └──────────────▲───────────────────────────────▲────────────────┘
-   │  POST /v1/exec (all files + session ID + name)          │ registration, HTTP egress     │ Web UI
-   │  forwarded by the gateway to Codapi                     │                               │
-   ▼                                                         │                               │
-Codapi (:1313) ── docker run --detach ──► sandbox container on an internal network ──────────┘
-                  docker exec          ─► temporal-serve: dev server + Web UI under /ui/{session}, lingers 10 min
-                                          temporal-run:   Worker in the background, client in the foreground
-```
+![Architecture: the browser talks to the gateway; the gateway forwards runs to Codapi, proxies each session's Web UI, is the sandbox network's only route out, and carries a session's database between run containers](docs/architecture.svg)
 
 - **Sandboxes** (`codapi/sandboxes/temporal-<language>/`): one image per SDK with dependencies preinstalled and caches pre-warmed by running the tutorial's tests at build time. Each has `run`, `history`, and `test` commands.
 - **Gateway** (`gateway/`): learners' network switch, Web UI routing, the egress allowlist, and the `/v1/` route to Codapi with an optional per-address run limit. When a learner's switch is off, the proxy returns `503` to their container, so Activities fail and Temporal retries them.

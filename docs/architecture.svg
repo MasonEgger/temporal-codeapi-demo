@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="560" viewBox="0 0 1000 560" role="img" aria-labelledby="title desc">
+  <title id="title">Playground architecture</title>
+  <desc id="desc">The browser talks only to the gateway. The gateway serves the pages, forwards runs to Codapi, and is the sandbox network's only route out. Codapi starts one container per run; the container's Temporal dev server registers with the gateway, which proxies its Web UI back to the browser and carries the session's database to the next run's container.</desc>
+  <style>
+    :root {
+      --paper: #f6f7fa;
+      --surface: #ffffff;
+      --ink: #1c2030;
+      --ink-soft: #545a70;
+      --rule: #dfe2ea;
+      --action: #4b3fd6;
+      --action-soft: #ecebfd;
+      --line: #6b7190;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --paper: #151826;
+        --surface: #1f2335;
+        --ink: #d9dcea;
+        --ink-soft: #8e94ad;
+        --rule: #2e3348;
+        --action: #9d96f0;
+        --action-soft: #262a46;
+        --line: #8e94ad;
+      }
+    }
+    text { font-family: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif; fill: var(--ink-soft); font-size: 12px; }
+    .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
+    .accent { fill: var(--action); }
+    .label { font-size: 11px; }
+    .mono { font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace; font-size: 11.5px; }
+    .paper { fill: var(--paper); }
+    .box { fill: var(--surface); stroke: var(--rule); stroke-width: 1.5; }
+    .box-accent { fill: var(--action-soft); stroke: var(--action); stroke-width: 1.5; }
+    .ghost { fill: none; stroke: var(--rule); stroke-width: 1.5; stroke-dasharray: 6 4; }
+    .arrow { fill: none; stroke: var(--line); stroke-width: 1.6; }
+    .arrow-head { fill: var(--line); }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path class="arrow-head" d="M 0 0 L 10 5 L 0 10 z"/>
+    </marker>
+  </defs>
+
+  <rect class="paper" x="0" y="0" width="1000" height="560" rx="14"/>
+
+  <!-- Browser -->
+  <rect class="box" x="30" y="200" width="190" height="130" rx="12"/>
+  <text class="title" x="50" y="228">Browser</text>
+  <text class="mono" x="50" y="252">web/&lt;language&gt;.html</text>
+  <text class="mono" x="50" y="270">tutorial.js</text>
+  <text x="50" y="294">run consoles, network switch,</text>
+  <text x="50" y="312">embedded Web UI, quizzes</text>
+
+  <!-- Gateway -->
+  <rect class="box-accent" x="330" y="120" width="310" height="280" rx="12"/>
+  <text class="title accent" x="340" y="148">Gateway (Go)</text>
+  <text class="label" x="340" y="166">:3129 for browsers · :3128 for sandboxes</text>
+  <text x="340" y="196">serves web/ and examples/</text>
+  <text x="340" y="218">/v1/ forwarded to Codapi, per-address run limit</text>
+  <text x="340" y="240">/api/sessions/{id}/network: the network switch</text>
+  <text x="340" y="262">/ui/{id}/ proxied to the session's Web UI</text>
+  <text x="340" y="284">forward proxy: the sandbox network's only way out</text>
+  <text x="340" y="306">503 to a session whose switch is off</text>
+  <text x="340" y="336">holds a session's Temporal database between</text>
+  <text x="340" y="354">runs so the Web UI shows every run</text>
+  <text class="label" x="340" y="384">sessions, switches, and databases live in memory</text>
+
+  <!-- Codapi -->
+  <rect class="box" x="730" y="60" width="245" height="90" rx="12"/>
+  <text class="title" x="750" y="88">Codapi (:1313)</text>
+  <text class="mono" x="750" y="112">docker run --detach → temporal-serve</text>
+  <text class="mono" x="750" y="130">docker exec → temporal-run</text>
+
+  <!-- Sandbox container -->
+  <rect class="box" x="730" y="220" width="245" height="200" rx="12"/>
+  <text class="title" x="750" y="248">Sandbox container</text>
+  <text class="label" x="750" y="266">internal network · one per run</text>
+  <text class="mono" x="750" y="294">temporal-serve</text>
+  <text x="750" y="312">Temporal dev server, Web UI on :8233,</text>
+  <text x="750" y="330">lingers 10 minutes</text>
+  <text class="mono" x="750" y="358">temporal-run</text>
+  <text x="750" y="376">Worker in the background,</text>
+  <text x="750" y="394">client in the foreground</text>
+
+  <!-- Previous run's container -->
+  <rect class="ghost" x="730" y="450" width="245" height="70" rx="12"/>
+  <text class="title" x="750" y="478">Previous run's container</text>
+  <text x="750" y="500">hands its database to the gateway, exits</text>
+
+  <!-- Internet -->
+  <rect class="box" x="320" y="460" width="320" height="60" rx="12"/>
+  <text class="title" x="340" y="488">icanhazip.com · ip-api.com</text>
+  <text x="340" y="506">the only hosts the allowlist permits</text>
+
+  <!-- Browser → Gateway -->
+  <path class="arrow" d="M 220 265 L 328 265" marker-end="url(#arrow)"/>
+  <text class="label" x="228" y="254">pages, runs,</text>
+  <text class="label" x="228" y="283">switch, Web UI</text>
+
+  <!-- Gateway → Codapi -->
+  <path class="arrow" d="M 640 150 L 690 150 L 690 105 L 728 105" marker-end="url(#arrow)"/>
+  <text class="label" x="684" y="102" text-anchor="end">run request: every file,</text>
+  <text class="label" x="684" y="116" text-anchor="end">session ID, learner name</text>
+
+  <!-- Codapi → Sandbox -->
+  <path class="arrow" d="M 850 150 L 850 218" marker-end="url(#arrow)"/>
+  <text class="label" x="858" y="190">start, then exec</text>
+
+  <!-- Sandbox → Gateway -->
+  <path class="arrow" d="M 730 300 L 642 300" marker-end="url(#arrow)"/>
+  <text class="label" x="648" y="292">register, egress</text>
+
+  <!-- Gateway → Sandbox -->
+  <path class="arrow" d="M 640 345 L 728 345" marker-end="url(#arrow)"/>
+  <text class="label" x="648" y="362">Web UI :8233</text>
+
+  <!-- Previous container → Gateway -->
+  <path class="arrow" d="M 730 485 L 680 485 L 680 380 L 642 380" marker-end="url(#arrow)"/>
+  <text class="label" x="686" y="440">database</text>
+  <text class="label" x="686" y="454">handoff</text>
+
+  <!-- Gateway → Internet -->
+  <path class="arrow" d="M 480 400 L 480 458" marker-end="url(#arrow)"/>
+  <text class="label" x="488" y="434">allowlisted egress only</text>
+</svg>

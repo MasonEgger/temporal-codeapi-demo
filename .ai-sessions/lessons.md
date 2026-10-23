@@ -2,6 +2,9 @@
 
 ## Recent
 <!-- 10 most recent lessons, newest first -->
+- Verify a reported cause before fixing it: the "same Workflow ID" report was really one dev server per run; a 20-line probe through the API showed the IDs differed and only the UI listing was the problem (2026-10-23)
+- `TARGETARCH` is set only by BuildKit; Docker without the buildx plugin uses the legacy builder and leaves it empty, so Dockerfiles need `${TARGETARCH:-$(dpkg --print-architecture)}` (2026-10-23)
+- The Temporal dev server with `--db-filename` shuts down cleanly on SIGTERM to one SQLite file (~660 KB per Workflow) and a restart from it keeps namespaces and Workflows, so a session's history can move between containers (2026-10-23)
 - A leaked age key decrypts every historical sops blob and `sops updatekeys` cannot undo that; the fix is to rotate the credential inside (the DO token), not to rewrite history (2026-10-23)
 - `core.hooksPath` replaces every other hook location, so a repo `.githooks/pre-commit` that must coexist with a global hook should exec `$(git config --global core.hooksPath)/pre-commit` afterwards (expand `~` by hand) (2026-10-23)
 - `gitleaks git --pre-commit --staged` scans only the staged diff; to prove an allowlist covers an existing file, stage the whole file as new in a scratch repo, since a one-byte edit scans one byte (2026-10-23)
@@ -9,9 +12,6 @@
 - A bind mount follows the inode, not the path: when a deploy deletes and recreates a mounted directory (git checkout through a tree without it), recreate the container or every read under the mount fails with ENOENT (2026-10-23)
 - Smoke tests must fetch what users fetch: the suite only exercised /v1/exec, so a site where every page 404'd passed 16 of 16 (2026-10-23)
 - Mason squash-merges, so a stacked PR loses its shared history when its base lands and shows add/add conflicts on identical files; replay the dependent commits onto main (cherry-pick to a fresh branch) instead of stacking (2026-10-23)
-- `git merge-tree --write-tree A B` reports real merge conflicts without touching the working tree; use it before trusting GitHub's mergeable flag (2026-10-23)
-- Docker 28+ does not load `br_netfilter`, so iptables `DOCKER-USER` rules never see traffic between containers on the same bridge; isolate same-bridge containers with an nftables `bridge`-family forward chain keyed on `meta ibrname`/`obrname` (allow ARP to the permitted peer too) (2026-10-22)
-- Before reusing a DigitalOcean token copied from another repo's sops file, run `doctl account get --access-token "$TF_VAR_do_token"`; PyTexas's token is the PyTexas Developers team, not Mason's personal team (2026-10-22)
 
 ## Git
 - `core.hooksPath` replaces every other hook location, so a repo `.githooks/pre-commit` that must coexist with a global hook should exec `$(git config --global core.hooksPath)/pre-commit` afterwards (expand `~` by hand) (2026-10-23)
@@ -19,10 +19,12 @@
 - `git merge-tree --write-tree A B` reports real merge conflicts without touching the working tree; use it before trusting GitHub's mergeable flag (2026-10-23)
 
 ## Workflow
+- Verify a reported cause before fixing it: the "same Workflow ID" report was really one dev server per run; a 20-line probe through the API showed the IDs differed and only the UI listing was the problem (2026-10-23)
 - When adapting existing documentation, ask whether to keep the original text and edit it before writing anything; fresh prose cost a full redo (2026-10-22)
 - Confirm "build now or plan first?" before turning a feasibility discussion into a full implementation (2026-10-20)
 
 ## Infrastructure
+- `TARGETARCH` is set only by BuildKit; Docker without the buildx plugin uses the legacy builder and leaves it empty, so Dockerfiles need `${TARGETARCH:-$(dpkg --print-architecture)}` (2026-10-23)
 - A bind mount follows the inode, not the path: when a deploy deletes and recreates a mounted directory (git checkout through a tree without it), recreate the container or every read under the mount fails with ENOENT (2026-10-23)
 - Docker 28+ does not load `br_netfilter`, so iptables `DOCKER-USER` rules never see traffic between containers on the same bridge; isolate same-bridge containers with an nftables `bridge`-family forward chain keyed on `meta ibrname`/`obrname` (allow ARP to the permitted peer too) (2026-10-22)
 - Before reusing a DigitalOcean token copied from another repo's sops file, run `doctl account get --access-token "$TF_VAR_do_token"`; PyTexas's token is the PyTexas Developers team, not Mason's personal team (2026-10-22)
@@ -34,6 +36,7 @@
 - Codapi reads `codapi.json`, `box.json`, and `commands.json` only at startup; restart the server after editing them (2026-10-20)
 
 ## Temporal
+- The Temporal dev server with `--db-filename` shuts down cleanly on SIGTERM to one SQLite file (~660 KB per Workflow) and a restart from it keeps namespaces and Workflows, so a session's history can move between containers (2026-10-23)
 - `temporal server start-dev --headless` works inside a `--network none` container because loopback still exists, so each run can have its own dev server (2026-10-20)
 - The Temporal Python SDK can hang at interpreter exit under CPU contention (sdk-python#300); in sandboxes, run the program via a launcher that flushes output and calls `os._exit` (2026-10-20)
 
