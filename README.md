@@ -75,7 +75,8 @@ The playground pages are those copies with surgical edits, so every change can b
 git diff --no-index web/tutorials/source/go.md web/tutorials/python.md
 ```
 
-Playground edits are the same on every page: a playground note in Prerequisites, local setup steps in a collapsed `:::setup` block, an "In the playground…" sentence after each local-only instruction, Run and Run tests buttons, two exercise buttons (a failing test and a five-attempt retry limit), the network switch, the Web UI panel, and the review questions as a quiz.
+Playground edits are the same on every page: a playground note in Prerequisites, local setup steps in a collapsed `:::setup` block, an "In the playground…" sentence after each local-only instruction, Run and Run tests buttons (including a "Run the Workflow test" button at the tutorial's first test run, before the Activity tests exist), two exercise buttons (a failing test and a five-attempt retry limit), the network switch, the Web UI panel, and the review questions as a quiz.
+Sample output and Web UI screenshots from the original tutorials stay in the text but fold into closed accordions, since the live console and Web UI panel show the real thing.
 
 The code in `examples/go` and `examples/typescript` is adapted from `temporalio/temporal-tutorial-ipgeo-go` and `-ts`; `examples/python` and `examples/java` mirror it.
 In all four, the greeting says "the machine running this code" because in the playground the Activities report the server's IP address and location, not the learner's.

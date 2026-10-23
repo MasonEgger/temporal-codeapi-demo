@@ -59,7 +59,9 @@ Request path: page (`web/<language>.html` + `web/tutorial.js`) → gateway `POST
 - `web/tutorials/source/*.md` are untouched copies of the live tutorials from `temporalio/temporal-learning`; ruff excludes them. Never edit them.
 - `web/tutorials/<language>.md` are copy-and-edit versions: Go and TypeScript from their own originals with playground-only edits; Python and Java from the Go original with language-specific edits. Keep the original wording wherever it still applies.
 - `<!--SNIPSTART id-->…<!--SNIPEND-->` blocks are replaced at render time by the region between `@@@SNIPSTART id` and `@@@SNIPEND` comments in `examples/<language>/`. The code shown and the code that runs are the same file.
-- Page markers: `<div class="run-block" data-command="run|history|test" …>` (exercise buttons add `data-variant-file/find/replace`), `<div class="network-switch">`, `<div class="webui">`, `<div class="quiz">`, and `:::setup Title` blocks for local-only setup steps.
+- Page markers: `<div class="run-block" data-command="run|history|test" …>` (exercise buttons add `data-variant-file/find/replace`; `data-omit-files` leaves listed files out of the request, so the first "Run the Workflow test" button runs before the Activity tests exist), `<div class="network-switch">`, `<div class="webui">`, `<div class="quiz">`, and `:::setup Title` blocks for local-only setup steps.
+- Anything a run would show live is backup and folds into a closed `<details class="sample-output">`: every ```output fence and every screenshot (an image inside a mixed paragraph is lifted out into its own accordion). No Markdown change is needed for that.
+- To check rendered pages without a local browser: `just up`, then `docker run --rm --network host zenika/alpine-chrome --no-sandbox --headless --disable-gpu --virtual-time-budget=15000 --dump-dom http://localhost:3129/python.html`.
 - Each page's `data-files` attribute must list every example file the run needs.
 
 ## Gotchas

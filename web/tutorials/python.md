@@ -287,6 +287,10 @@ tests/test_workflows.py .                                                [100%]
 ============================== 1 passed in 0.79s ===============================
 ```
 
+In the playground, click **Run the Workflow test** to run the one test you have so far:
+
+<div class="run-block" data-command="test" data-label="Run the Workflow test" data-output-label="pytest output" data-omit-files="tests/test_activities.py"></div>
+
 With a Workflow test in place, you can write unit tests for the Activities.
 
 Both of your Activities make external calls to services that will change their results based on who runs them. It will be challenging to test these Activities reliably. For example, the IP address may vary based on your machine's location.
