@@ -2,6 +2,8 @@
 
 ## Recent
 <!-- 10 most recent lessons, newest first -->
+- Mason squash-merges, so a stacked PR loses its shared history when its base lands and shows add/add conflicts on identical files; replay the dependent commits onto main (cherry-pick to a fresh branch) instead of stacking (2026-10-23)
+- `git merge-tree --write-tree A B` reports real merge conflicts without touching the working tree; use it before trusting GitHub's mergeable flag (2026-10-23)
 - Docker 28+ does not load `br_netfilter`, so iptables `DOCKER-USER` rules never see traffic between containers on the same bridge; isolate same-bridge containers with an nftables `bridge`-family forward chain keyed on `meta ibrname`/`obrname` (allow ARP to the permitted peer too) (2026-10-22)
 - Before reusing a DigitalOcean token copied from another repo's sops file, run `doctl account get --access-token "$TF_VAR_do_token"`; PyTexas's token is the PyTexas Developers team, not Mason's personal team (2026-10-22)
 - Verify a firewall rule by exercising the path it is meant to block (and reading rule counters), not by listing the rule; a zero-packet chain is a rule that is not in the path (2026-10-22)
@@ -10,8 +12,10 @@
 - `doctl balance get` reads $0.00 under a 100% account discount; use `doctl invoice summary <uuid>` and `doctl compute droplet list` for real spend (2026-10-22)
 - When the local Go toolchain cannot download the go.mod version, run `gofmt`, `go vet`, and `go test` inside `golang:<version>-bookworm` with `GOFLAGS=-buildvcs=false` (2026-10-22)
 - When adapting existing documentation, ask whether to keep the original text and edit it before writing anything; fresh prose cost a full redo (2026-10-22)
-- codapi-js aborts exec requests after a hard-coded 10s; register a custom engine on `window.codapi.engines` (or drop the widget) for long runs (2026-10-22)
-- Temporal's dev server Web UI accepts `--ui-public-path` and stores its sidebar state in localStorage `navOpen`, so a same-origin iframe can collapse it (2026-10-22)
+
+## Git
+- Mason squash-merges, so a stacked PR loses its shared history when its base lands and shows add/add conflicts on identical files; replay the dependent commits onto main (cherry-pick to a fresh branch) instead of stacking (2026-10-23)
+- `git merge-tree --write-tree A B` reports real merge conflicts without touching the working tree; use it before trusting GitHub's mergeable flag (2026-10-23)
 
 ## Workflow
 - When adapting existing documentation, ask whether to keep the original text and edit it before writing anything; fresh prose cost a full redo (2026-10-22)
