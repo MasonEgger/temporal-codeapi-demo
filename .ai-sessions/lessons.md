@@ -2,6 +2,9 @@
 
 ## Recent
 <!-- 10 most recent lessons, newest first -->
+- A leaked age key decrypts every historical sops blob and `sops updatekeys` cannot undo that; the fix is to rotate the credential inside (the DO token), not to rewrite history (2026-10-23)
+- `core.hooksPath` replaces every other hook location, so a repo `.githooks/pre-commit` that must coexist with a global hook should exec `$(git config --global core.hooksPath)/pre-commit` afterwards (expand `~` by hand) (2026-10-23)
+- `gitleaks git --pre-commit --staged` scans only the staged diff; to prove an allowlist covers an existing file, stage the whole file as new in a scratch repo, since a one-byte edit scans one byte (2026-10-23)
 - To check a client-rendered page without a local browser, run `zenika/alpine-chrome` in Docker with `--network host --headless --virtual-time-budget=15000 --dump-dom <url>` and assert on the DOM it prints (2026-10-23)
 - Mason squash-merges, so a stacked PR loses its shared history when its base lands and shows add/add conflicts on identical files; replay the dependent commits onto main (cherry-pick to a fresh branch) instead of stacking (2026-10-23)
 - `git merge-tree --write-tree A B` reports real merge conflicts without touching the working tree; use it before trusting GitHub's mergeable flag (2026-10-23)
@@ -9,11 +12,9 @@
 - Before reusing a DigitalOcean token copied from another repo's sops file, run `doctl account get --access-token "$TF_VAR_do_token"`; PyTexas's token is the PyTexas Developers team, not Mason's personal team (2026-10-22)
 - Verify a firewall rule by exercising the path it is meant to block (and reading rule counters), not by listing the rule; a zero-packet chain is a rule that is not in the path (2026-10-22)
 - Ansible handlers are play-wide and run at the end of the play, so define a handler in the earliest role whose task notifies it even if a later role installs the service (2026-10-22)
-- ansible-lint's production profile wants registered variables prefixed with the role name (`playground_images`, not `image_inspect`) (2026-10-22)
-- `doctl balance get` reads $0.00 under a 100% account discount; use `doctl invoice summary <uuid>` and `doctl compute droplet list` for real spend (2026-10-22)
-- When the local Go toolchain cannot download the go.mod version, run `gofmt`, `go vet`, and `go test` inside `golang:<version>-bookworm` with `GOFLAGS=-buildvcs=false` (2026-10-22)
 
 ## Git
+- `core.hooksPath` replaces every other hook location, so a repo `.githooks/pre-commit` that must coexist with a global hook should exec `$(git config --global core.hooksPath)/pre-commit` afterwards (expand `~` by hand) (2026-10-23)
 - Mason squash-merges, so a stacked PR loses its shared history when its base lands and shows add/add conflicts on identical files; replay the dependent commits onto main (cherry-pick to a fresh branch) instead of stacking (2026-10-23)
 - `git merge-tree --write-tree A B` reports real merge conflicts without touching the working tree; use it before trusting GitHub's mergeable flag (2026-10-23)
 
@@ -39,6 +40,10 @@
 - On JDK 25, pass JVM flags via an `@argfile` instead of `JDK_JAVA_OPTIONS` to avoid the launcher's "Picked up" notice; add `--sun-misc-unsafe-memory-access=allow` and `--enable-native-access=ALL-UNNAMED` for the Temporal SDK's netty (2026-10-20)
 
 ## Tooling
+- `gitleaks git --pre-commit --staged` scans only the staged diff; to prove an allowlist covers an existing file, stage the whole file as new in a scratch repo, since a one-byte edit scans one byte (2026-10-23)
 - When the local Go toolchain cannot download the go.mod version, run `gofmt`, `go vet`, and `go test` inside `golang:<version>-bookworm` with `GOFLAGS=-buildvcs=false` (2026-10-22)
 - codapi-js aborts exec requests after a hard-coded 10s; register a custom engine on `window.codapi.engines` (or drop the widget) for long runs (2026-10-22)
 - Temporal's dev server Web UI accepts `--ui-public-path` and stores its sidebar state in localStorage `navOpen`, so a same-origin iframe can collapse it (2026-10-22)
+
+## Security
+- A leaked age key decrypts every historical sops blob and `sops updatekeys` cannot undo that; the fix is to rotate the credential inside (the DO token), not to rewrite history (2026-10-23)

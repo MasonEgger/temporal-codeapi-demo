@@ -87,6 +87,9 @@ In all four, the greeting says "the machine running this code" because in the pl
 - **ip-api.com rate limit.** Every learner shares the server's IP address, and ip-api.com's free tier allows 45 requests a minute per IP. A busy page will see the location Activity fail and retry.
 - **Screenshots.** The Python and Java pages reuse the Go tutorial's Web UI screenshots, which show Go names.
 - **Python exit hang.** Python programs run through `run_program.py`, which exits with `os._exit` to avoid an SDK finalization hang under CPU contention ([temporalio/sdk-python#300](https://github.com/temporalio/sdk-python/issues/300)).
+- **Secrets.** `secrets/terraform.sops.env` (the DigitalOcean token) and `deploy/terraform/state.sops.json` are committed sops-encrypted to the age recipients in `.sops.yaml`; the ciphertext is safe in a public repository and only the age private key decrypts it.
+  `just check` runs gitleaks over the whole tree, and `just install-hooks` points git at `.githooks/pre-commit`, which runs gitleaks on the staged changes before every commit (git does not enable repo hooks on its own).
+  `.gitleaks.toml` allowlists the encrypted files.
 - **Exposure.** Containers run learner code. Locally they share the internal network and can reach each other's Web UIs. The hosted setup in `deploy/` runs on a dedicated droplet, drops traffic between sandboxes and from sandboxes to the host, and limits runs per client address; see `deploy/README.md`.
 
 ## Hosting
