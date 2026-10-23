@@ -6,6 +6,7 @@ Set ``PLAYGROUND_URL`` to point the suite at a deployed playground instead of th
 """
 
 import os
+import re
 import uuid
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
@@ -131,6 +132,24 @@ class TestFirstTest:
 
         assert execution.ok, execution.stderr
         assert ACTIVITY_TEST_FILES[language].rsplit("/", 1)[-1].split(".")[0] not in execution.stdout
+
+
+class TestSession:
+    """Runs in one session share one Temporal Service, so the Web UI shows all of them."""
+
+    def test_runs_accumulate_in_the_web_ui(self, codapi: httpx.Client) -> None:
+        files = tutorial_files("python")
+        first = execute(codapi, "temporal-python", "history", files)
+        second = execute(codapi, "temporal-python", "history", files)
+
+        assert first.ok and second.ok, (first.stderr, second.stderr)
+        ids = [re.findall(r"=== Event History: (\S+) ===", run.stdout) for run in (first, second)]
+        # Each run prints only its own history, even though the server now holds both.
+        assert [len(found) for found in ids] == [1, 1], ids
+        assert ids[0] != ids[1]
+        listed = codapi.get(f"{PLAYGROUND_URL}/ui/{files['session.id']}/api/v1/namespaces/default/workflows").json()
+        shown = {workflow["execution"]["workflowId"] for workflow in listed["executions"]}
+        assert {ids[0][0], ids[1][0]} <= shown, shown
 
 
 class TestConcurrency:

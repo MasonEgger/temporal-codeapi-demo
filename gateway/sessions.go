@@ -61,12 +61,18 @@ func (s *Store) SetNetwork(id string, on bool) {
 	sess.networkOff = !on
 }
 
-// Register records that a session's latest sandbox container has the given IP.
-func (s *Store) Register(id, containerIP string) {
+// Register records that a session's latest sandbox container has the given IP and returns the IP of the
+// container it replaces, or "" when there was none (or it is the same container registering again).
+func (s *Store) Register(id, containerIP string) (previousIP string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.get(id).containerIP = containerIP
+	sess := s.get(id)
+	if sess.containerIP != containerIP {
+		previousIP = sess.containerIP
+	}
+	sess.containerIP = containerIP
 	s.ipSession[containerIP] = id
+	return previousIP
 }
 
 // ContainerIP returns the IP of a session's latest sandbox container.

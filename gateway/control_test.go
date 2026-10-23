@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 )
 
 const sessionID = "6f1c2a9e-3b7d-4c55-9e0a-1b2c3d4e5f60"
@@ -159,7 +160,7 @@ func TestWebUIIsProxiedToSessionContainer(t *testing.T) {
 
 func TestSandboxRegistrationUsesCallerIP(t *testing.T) {
 	store := NewStore()
-	proxy := httptest.NewServer(NewSandboxHandler(store, NewForwardProxy(store, nil)))
+	proxy := httptest.NewServer(NewSandboxHandler(store, NewHandoffs(time.Minute, 1<<20, time.Now), NewForwardProxy(store, nil)))
 	defer proxy.Close()
 
 	response, err := http.Post(proxy.URL+"/register/"+sessionID, "text/plain", nil)
@@ -167,8 +168,8 @@ func TestSandboxRegistrationUsesCallerIP(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if response.StatusCode != http.StatusNoContent {
-		t.Fatalf("status code = %d, want 204", response.StatusCode)
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("status code = %d, want 200", response.StatusCode)
 	}
 	if ip, ok := store.ContainerIP(sessionID); !ok || ip != "127.0.0.1" {
 		t.Fatalf("ContainerIP = %q, %v; want 127.0.0.1", ip, ok)
@@ -178,7 +179,7 @@ func TestSandboxRegistrationUsesCallerIP(t *testing.T) {
 func TestCurrentReportsLatestContainerIP(t *testing.T) {
 	store := NewStore()
 	store.Register(sessionID, "10.0.0.8")
-	proxy := httptest.NewServer(NewSandboxHandler(store, NewForwardProxy(store, nil)))
+	proxy := httptest.NewServer(NewSandboxHandler(store, NewHandoffs(time.Minute, 1<<20, time.Now), NewForwardProxy(store, nil)))
 	defer proxy.Close()
 
 	response, err := http.Get(proxy.URL + "/current/" + sessionID)

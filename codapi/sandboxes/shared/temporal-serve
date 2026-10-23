@@ -4,13 +4,19 @@
 #
 # Usage: temporal-serve
 #
-# Lingers up to TEMPORAL_LINGER_SECONDS so the learner can explore the run in the Web UI,
-# but exits as soon as a newer run from the same session replaces it. Without a session,
-# it exits right after temporal-run marks the run done.
+# Every run gets a new container, but a session keeps one history: when this container replaces an
+# earlier one, it waits for that container's database (handed over through the gateway) and starts the
+# dev server from it, so every run the learner makes shows up in the same Web UI. When this container is
+# replaced in turn, or its linger time runs out, it stops the server and hands the database on.
+#
+# Lingers up to TEMPORAL_LINGER_SECONDS so the learner can explore the run in the Web UI. Without a
+# session, it exits right after temporal-run marks the run done.
 set -euo pipefail
 
 linger_seconds="${TEMPORAL_LINGER_SECONDS:-600}"
+handoff_wait_seconds="${TEMPORAL_HANDOFF_WAIT_SECONDS:-12}"
 gateway="http://gateway:3128"
+database=/tmp/temporal.db
 
 session="$(tr -d '[:space:]' </sandbox/session.id 2>/dev/null || true)"
 if [[ ! "${session}" =~ ^[A-Za-z0-9-]{16,64}$ ]]; then
@@ -21,6 +27,24 @@ if [[ -n "${session}" ]]; then
     ui_path="/ui/${session}"
 fi
 
+# Register first: the answer says whether a previous container's database is on its way.
+if [[ -n "${session}" ]]; then
+    expect="$(curl --silent --noproxy '*' --request POST "${gateway}/register/${session}" || echo none)"
+    if [[ "${expect}" == "handoff" ]]; then
+        deadline=$((SECONDS + handoff_wait_seconds))
+        while ((SECONDS < deadline)); do
+            if curl --silent --fail --noproxy '*' --output "${database}" "${gateway}/handoff/${session}"; then
+                break
+            fi
+            sleep 0.5
+        done
+        if [[ ! -s "${database}" ]]; then
+            echo "temporal-serve: no database handed over in ${handoff_wait_seconds}s; starting empty" >&2
+            rm -f "${database}"
+        fi
+    fi
+fi
+
 # The gRPC frontend stays on loopback; only the Web UI listens on the sandbox network for the gateway.
 temporal server start-dev \
     --ip 127.0.0.1 \
@@ -28,8 +52,10 @@ temporal server start-dev \
     --ui-port 8233 \
     --ui-public-path "${ui_path}" \
     --ui-disable-news-fetch \
+    --db-filename "${database}" \
     --log-level error \
     >/tmp/temporal-server.log 2>&1 &
+server_pid=$!
 
 if [[ -z "${session}" ]]; then
     until [[ -e /tmp/run-done ]]; do
@@ -38,15 +64,25 @@ if [[ -z "${session}" ]]; then
     exit 0
 fi
 
-curl --silent --show-error --noproxy '*' --request POST "${gateway}/register/${session}" >/dev/null
 my_ip="$(hostname -i | awk '{print $1}')"
 
 # Stay up for the Web UI until superseded by this session's next run or the linger time runs out.
 deadline=$((SECONDS + linger_seconds))
 while ((SECONDS < deadline)); do
-    sleep 5
+    sleep 1
     current="$(curl --silent --noproxy '*' "${gateway}/current/${session}" || true)"
     if [[ -n "${current}" && "${current}" != "${my_ip}" ]]; then
-        exit 0
+        break
     fi
 done
+
+# Stop the server cleanly so the database is consistent, then hand it to whichever container comes next.
+kill -TERM "${server_pid}" 2>/dev/null || true
+for _ in $(seq 1 50); do
+    kill -0 "${server_pid}" 2>/dev/null || break
+    sleep 0.1
+done
+kill -KILL "${server_pid}" 2>/dev/null || true
+if [[ -s "${database}" ]]; then
+    curl --silent --noproxy '*' --request POST --data-binary "@${database}" "${gateway}/handoff/${session}" || true
+fi

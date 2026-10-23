@@ -5,9 +5,11 @@ FROM debian:bookworm-slim
 ARG TEMPORAL_CLI_VERSION=v1.9.1
 ARG TARGETARCH
 
+# TARGETARCH is only set by BuildKit; the legacy builder leaves it empty, so fall back to dpkg's answer.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
-    && curl -sSfL "https://temporal.download/cli/archive/${TEMPORAL_CLI_VERSION}?platform=linux&arch=${TARGETARCH}" \
+    && arch="${TARGETARCH:-$(dpkg --print-architecture)}" \
+    && curl -sSfL "https://temporal.download/cli/archive/${TEMPORAL_CLI_VERSION}?platform=linux&arch=${arch}" \
         | tar -xz -C /usr/local/bin temporal \
     && rm -rf /var/lib/apt/lists/*
 

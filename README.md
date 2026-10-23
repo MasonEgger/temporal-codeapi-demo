@@ -51,7 +51,8 @@ browser (web/*.html + tutorial.js)
    │  forwarded by the gateway to Codapi                     │                               │
    ▼                                                         │                               │
 Codapi (:1313) ── docker run --detach ──► sandbox container on an internal network ──────────┘
-                  docker exec          ─► temporal-serve: dev server + Web UI under /ui/{session}, lingers 10 min
+                  docker exec          ─► temporal-serve: dev server + Web UI under /ui/{session}, lingers 10 min,
+                                          then hands its database to the session's next container via the gateway
                                           temporal-run:   Worker in the background, client in the foreground
 ```
 

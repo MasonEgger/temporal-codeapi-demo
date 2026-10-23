@@ -27,7 +27,10 @@ func main() {
 
 	store := NewStore()
 	allowed := strings.Split(*allow, ",")
-	sandbox := NewSandboxHandler(store, NewForwardProxy(store, allowed))
+	// A session's Temporal database follows it from one run's container to the next, so the Web UI
+	// shows every run; 32 MiB is far above a session's worth of runs and 15 minutes outlives the linger.
+	handoffs := NewHandoffs(15*time.Minute, 32<<20, time.Now)
+	sandbox := NewSandboxHandler(store, handoffs, NewForwardProxy(store, allowed))
 	options := SiteOptions{UIPort: *uiPort, TrustProxy: *trustProxy}
 	if *codapiAddr != "" {
 		options.Codapi = &url.URL{Scheme: "http", Host: *codapiAddr}

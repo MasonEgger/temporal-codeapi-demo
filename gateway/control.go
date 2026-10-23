@@ -4,6 +4,7 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"io/fs"
 	"log"
 	"net"
@@ -73,9 +74,10 @@ func NewSite(store *Store, pages fs.FS, examples fs.FS, options SiteOptions) htt
 	return mux
 }
 
-// NewSandboxHandler returns the handler sandboxes reach: registration, the current-container
-// lookup that lets superseded dev servers exit early, and the forward proxy.
-func NewSandboxHandler(store *Store, proxy *ForwardProxy) http.Handler {
+// NewSandboxHandler returns the handler sandboxes reach: registration (which answers "handoff" when a
+// previous container's database is on its way, "none" otherwise), the current-container lookup that lets
+// superseded dev servers exit, the database handoff itself, and the forward proxy.
+func NewSandboxHandler(store *Store, handoffs *Handoffs, proxy *ForwardProxy) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.IsAbs() || r.Method == http.MethodConnect {
 			proxy.ServeHTTP(w, r)
@@ -87,9 +89,39 @@ func NewSandboxHandler(store *Store, proxy *ForwardProxy) http.Handler {
 				http.Error(w, "invalid session id", http.StatusBadRequest)
 				return
 			}
-			store.Register(id, clientIP(r))
-			log.Printf("sandbox: session %s registered container %s", id, clientIP(r))
-			w.WriteHeader(http.StatusNoContent)
+			previous := store.Register(id, clientIP(r))
+			log.Printf("sandbox: session %s registered container %s (replacing %q)", id, clientIP(r), previous)
+			if previous == "" {
+				io.WriteString(w, "none")
+				return
+			}
+			handoffs.Expect(id, previous)
+			io.WriteString(w, "handoff")
+			return
+		}
+
+		if id, ok := strings.CutPrefix(r.URL.Path, "/handoff/"); ok && sessionIDPattern.MatchString(id) {
+			switch r.Method {
+			case http.MethodPost:
+				data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, handoffs.MaxBytes()))
+				if err != nil {
+					http.Error(w, "database too large to hand over", http.StatusRequestEntityTooLarge)
+					return
+				}
+				handoffs.Put(id, clientIP(r), data)
+				log.Printf("sandbox: session %s database (%d bytes) handed over by %s", id, len(data), clientIP(r))
+				w.WriteHeader(http.StatusNoContent)
+			case http.MethodGet:
+				data, ok := handoffs.Take(id)
+				if !ok {
+					http.NotFound(w, r)
+					return
+				}
+				w.Header().Set("Content-Type", "application/octet-stream")
+				w.Write(data)
+			default:
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			}
 			return
 		}
 
