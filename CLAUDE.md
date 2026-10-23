@@ -77,5 +77,6 @@ Request path: page (`web/<language>.html` + `web/tutorial.js`) → gateway `POST
 - Java Activities must rethrow with `Activity.wrap(e)`; extra exception layers push the failure past the server's size limit and the Web UI shows "Failure exceeds size limit."
 - The gateway container bind-mounts `web/` and `examples/`. If a checkout deletes and recreates those directories (switching through a commit that lacks them), the running container keeps the dead inodes and every page 404s while `/v1/exec` still works; recreate the container (`just down && just up` locally; Ansible does it automatically when the checkout changed).
 - codapi-js is not used: its 10-second fetch timeout breaks outage runs, so `tutorial.js` posts to `/v1/exec` itself.
+- The README's architecture figure is `docs/architecture.svg`, hand-written with the site palette as CSS variables and a `prefers-color-scheme: dark` block; after editing it, screenshot both palettes with the headless Chrome command above and look at them. No ASCII diagrams in committed Markdown.
 - Code files start with a two-line `ABOUTME:` header; `tutorial.js` never shows it because snippets only include marked regions.
 - Commits must be signed (`git commit -S`, SSH signing key). Local `git log --show-signature` reports "No signature" without an allowed-signers file; GitHub still verifies it.
