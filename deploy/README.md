@@ -68,7 +68,7 @@ just deploy -e playground_git_ref=feature/my-branch
 ```
 
 A rebuild does not interrupt the running site.
-Codapi restarts after a new checkout because it reads its configuration only at startup; the gateway container is recreated only if its image changed.
+After a new checkout, Codapi restarts because it reads its configuration only at startup, and the gateway container is recreated so its bind mounts of `web/` and `examples/` follow the new checkout (a checkout can delete and recreate those directories, which leaves a running container pointing at dead inodes).
 
 ## Where Things Live on the Droplet
 

@@ -153,3 +153,28 @@ class TestIsolation:
 
         assert not execution.ok
         assert "unreachable" in execution.stderr.lower() or "timed out" in execution.stderr.lower()
+
+
+class TestSite:
+    """The gateway serves the tutorial pages and the example sources the pages load."""
+
+    @pytest.mark.parametrize(
+        "path",
+        ["", "python.html", "go.html", "java.html", "typescript.html", "tutorial.js", "tutorial.css"],
+    )
+    def test_page_is_served(self, codapi: httpx.Client, path: str) -> None:
+        # The gateway bind-mounts web/ from the checkout; a stale mount after a redeploy 404s every page
+        # while /v1/exec keeps working, so the run tests alone cannot catch it.
+        response = codapi.get(f"{PLAYGROUND_URL}/{path}")
+
+        assert response.status_code == 200, response.text[:200]
+        assert "<html" in response.text or path.endswith((".js", ".css"))
+
+    @pytest.mark.parametrize("language", LANGUAGES)
+    def test_tutorial_markdown_and_examples_are_served(self, codapi: httpx.Client, language: str) -> None:
+        tutorial = codapi.get(f"{PLAYGROUND_URL}/tutorials/{language}.md")
+        example = codapi.get(f"{PLAYGROUND_URL}/examples/{language}/" + next(iter(tutorial_files(language))))
+
+        assert tutorial.status_code == 200, tutorial.text[:200]
+        assert "SNIPSTART" in tutorial.text
+        assert example.status_code == 200, example.text[:200]
