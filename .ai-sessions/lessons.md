@@ -6,12 +6,12 @@
 - `core.hooksPath` replaces every other hook location, so a repo `.githooks/pre-commit` that must coexist with a global hook should exec `$(git config --global core.hooksPath)/pre-commit` afterwards (expand `~` by hand) (2026-10-23)
 - `gitleaks git --pre-commit --staged` scans only the staged diff; to prove an allowlist covers an existing file, stage the whole file as new in a scratch repo, since a one-byte edit scans one byte (2026-10-23)
 - To check a client-rendered page without a local browser, run `zenika/alpine-chrome` in Docker with `--network host --headless --virtual-time-budget=15000 --dump-dom <url>` and assert on the DOM it prints (2026-10-23)
+- A bind mount follows the inode, not the path: when a deploy deletes and recreates a mounted directory (git checkout through a tree without it), recreate the container or every read under the mount fails with ENOENT (2026-10-23)
+- Smoke tests must fetch what users fetch: the suite only exercised /v1/exec, so a site where every page 404'd passed 16 of 16 (2026-10-23)
 - Mason squash-merges, so a stacked PR loses its shared history when its base lands and shows add/add conflicts on identical files; replay the dependent commits onto main (cherry-pick to a fresh branch) instead of stacking (2026-10-23)
 - `git merge-tree --write-tree A B` reports real merge conflicts without touching the working tree; use it before trusting GitHub's mergeable flag (2026-10-23)
 - Docker 28+ does not load `br_netfilter`, so iptables `DOCKER-USER` rules never see traffic between containers on the same bridge; isolate same-bridge containers with an nftables `bridge`-family forward chain keyed on `meta ibrname`/`obrname` (allow ARP to the permitted peer too) (2026-10-22)
 - Before reusing a DigitalOcean token copied from another repo's sops file, run `doctl account get --access-token "$TF_VAR_do_token"`; PyTexas's token is the PyTexas Developers team, not Mason's personal team (2026-10-22)
-- Verify a firewall rule by exercising the path it is meant to block (and reading rule counters), not by listing the rule; a zero-packet chain is a rule that is not in the path (2026-10-22)
-- Ansible handlers are play-wide and run at the end of the play, so define a handler in the earliest role whose task notifies it even if a later role installs the service (2026-10-22)
 
 ## Git
 - `core.hooksPath` replaces every other hook location, so a repo `.githooks/pre-commit` that must coexist with a global hook should exec `$(git config --global core.hooksPath)/pre-commit` afterwards (expand `~` by hand) (2026-10-23)
@@ -23,6 +23,7 @@
 - Confirm "build now or plan first?" before turning a feasibility discussion into a full implementation (2026-10-20)
 
 ## Infrastructure
+- A bind mount follows the inode, not the path: when a deploy deletes and recreates a mounted directory (git checkout through a tree without it), recreate the container or every read under the mount fails with ENOENT (2026-10-23)
 - Docker 28+ does not load `br_netfilter`, so iptables `DOCKER-USER` rules never see traffic between containers on the same bridge; isolate same-bridge containers with an nftables `bridge`-family forward chain keyed on `meta ibrname`/`obrname` (allow ARP to the permitted peer too) (2026-10-22)
 - Before reusing a DigitalOcean token copied from another repo's sops file, run `doctl account get --access-token "$TF_VAR_do_token"`; PyTexas's token is the PyTexas Developers team, not Mason's personal team (2026-10-22)
 - Verify a firewall rule by exercising the path it is meant to block (and reading rule counters), not by listing the rule; a zero-packet chain is a rule that is not in the path (2026-10-22)
@@ -47,3 +48,5 @@
 
 ## Security
 - A leaked age key decrypts every historical sops blob and `sops updatekeys` cannot undo that; the fix is to rotate the credential inside (the DO token), not to rewrite history (2026-10-23)
+## Testing
+- Smoke tests must fetch what users fetch: the suite only exercised /v1/exec, so a site where every page 404'd passed 16 of 16 (2026-10-23)

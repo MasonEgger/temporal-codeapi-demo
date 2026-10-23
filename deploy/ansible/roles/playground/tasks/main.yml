@@ -95,6 +95,8 @@
     dest: /etc/temporal-playground.env
     mode: "0644"
 
+# A checkout that passes through a tree without web/ or examples/ deletes and recreates those directories,
+# and a running container keeps bind mounts to the old inodes (pages 404, the root 500s). Recreate it.
 - name: Run the gateway
   community.docker.docker_compose_v2:
     project_src: "{{ playground_dir }}/deploy"
@@ -103,6 +105,7 @@
     env_files:
       - /etc/temporal-playground.env
     state: present
+    recreate: "{{ 'always' if playground_checkout.changed else 'auto' }}"
     remove_orphans: true
 
 - name: Install the housekeeping service and timer

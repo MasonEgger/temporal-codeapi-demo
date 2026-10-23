@@ -75,6 +75,7 @@ Request path: page (`web/<language>.html` + `web/tutorial.js`) → gateway `POST
 - On macOS with Colima, Docker only mounts paths under `$HOME`; `just serve` points Codapi's `TMPDIR` at `.tmp/codapi`. If Colima stops, `colima start`, `docker context use colima`, `just up`.
 - Python programs run through `codapi/sandboxes/temporal-python/run_program.py`, which exits with `os._exit` to avoid temporalio/sdk-python#300.
 - Java Activities must rethrow with `Activity.wrap(e)`; extra exception layers push the failure past the server's size limit and the Web UI shows "Failure exceeds size limit."
+- The gateway container bind-mounts `web/` and `examples/`. If a checkout deletes and recreates those directories (switching through a commit that lacks them), the running container keeps the dead inodes and every page 404s while `/v1/exec` still works; recreate the container (`just down && just up` locally; Ansible does it automatically when the checkout changed).
 - codapi-js is not used: its 10-second fetch timeout breaks outage runs, so `tutorial.js` posts to `/v1/exec` itself.
 - Code files start with a two-line `ABOUTME:` header; `tutorial.js` never shows it because snippets only include marked regions.
 - Commits must be signed (`git commit -S`, SSH signing key). Local `git log --show-signature` reports "No signature" without an allowed-signers file; GitHub still verifies it.
