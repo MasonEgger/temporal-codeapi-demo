@@ -129,5 +129,5 @@ That removes the droplet, the firewall, the DNS record, and the generated invent
 Commit the re-encrypted `deploy/terraform/state.sops.json` afterward.
 Nothing on the droplet is state worth keeping; the repository is the source of truth.
 
-Current deployment: launched 2026-10-22 as a test deploy from the deploy branch, moved to `main` on 2026-10-23; planned teardown 2026-10-29.
-After the branches merge, `just infra-apply` (default `git_ref=main`) rewrites the inventory and `just deploy` moves the droplet to main without recreating it.
+Current deployment: redeployed 2026-11-02 from `main` for one day; teardown 2026-11-03 (Todoist task set).
+First deployment: 2026-10-22 to 2026-10-30.
