@@ -129,5 +129,5 @@ That removes the droplet, the firewall, the DNS record, and the generated invent
 Commit the re-encrypted `deploy/terraform/state.sops.json` afterward.
 Nothing on the droplet is state worth keeping; the repository is the source of truth.
 
-Current deployment: redeployed 2026-11-02 from `main` for one day; teardown 2026-11-03 (Todoist task set).
-First deployment: 2026-10-22 to 2026-10-30.
+No current deployment.
+Past deployments: 2026-10-22 to 2026-10-30, and 2026-11-02 to 2026-11-03.
